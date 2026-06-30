@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #07111f;
+  --bg-soft: #101f35;
+  --foreground: #eaf2ff;
+  --text: #eaf2ff;
+  --accent: #8cf4ff;
+  --accent-strong: #bcfbff;
+  --warm: #ffb36b;
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(87, 224, 255, 0.16), transparent 28%),
+    radial-gradient(circle at 85% 20%, rgba(255, 165, 73, 0.12), transparent 18%),
+    linear-gradient(180deg, #0a1528 0%, #07111f 52%, #050c18 100%);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(140, 244, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 244, 255, 0.08) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.92), transparent 88%);
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(90px);
+  opacity: 0.6;
+}
+
+.hero-orb-cyan {
+  top: 6rem;
+  left: -6rem;
+  height: 20rem;
+  width: 20rem;
+  background: rgba(67, 214, 255, 0.34);
+}
+
+.hero-orb-amber {
+  top: 14rem;
+  right: 8%;
+  height: 16rem;
+  width: 16rem;
+  background: rgba(255, 170, 94, 0.22);
+}
+
+.hero-orb-rose {
+  bottom: 10%;
+  left: 38%;
+  height: 14rem;
+  width: 14rem;
+  background: rgba(255, 92, 150, 0.14);
+}
+
+.hero-panel {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(9, 18, 32, 0.7);
+  backdrop-filter: blur(24px);
+}
+
+.hero-message {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 60px rgba(56, 189, 248, 0.18);
+  animation: pulse-float 5s ease-in-out infinite;
+}
+
+.profile-ring {
+  background:
+    radial-gradient(circle at 50% 22%, rgba(140, 244, 255, 0.45), transparent 24%),
+    radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.5), transparent 18%),
+    linear-gradient(180deg, rgba(32, 54, 86, 0.9), rgba(11, 20, 36, 0.96));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 30px 80px rgba(7, 16, 28, 0.45);
+}
+
+@keyframes pulse-float {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 0 60px rgba(56, 189, 248, 0.18);
+  }
+
+  50% {
+    transform: translateY(-6px);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 0 90px rgba(56, 189, 248, 0.26);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-grid {
+    background-size: 42px 42px;
+  }
+}
