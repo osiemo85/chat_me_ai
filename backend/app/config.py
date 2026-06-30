@@ -18,10 +18,10 @@ class Settings(BaseSettings):
     supabase_bucket: str
     supabase_key: str
     supabase_url: str
-    nvidia_api_key: str | None = None
-    model_name: str | None = None
+    openrouter_api_key: str | None = None
+    embedding_model: str | None = None
     chat_model_name: str | None = None
-    nvidia_truncate: str = "NONE"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
     chat_temperature: float = 0.3
     chat_top_p: float = 1.0
     chat_max_tokens: int = 16_384

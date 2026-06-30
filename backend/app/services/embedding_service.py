@@ -1,30 +1,30 @@
-"""NVIDIA embedding helpers for CV chunk retrieval."""
+"""OpenRouter embedding helpers for CV chunk retrieval."""
 
 from __future__ import annotations
 
 from functools import lru_cache
 
-from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 from ..config import get_settings
 
 
 @lru_cache(maxsize=1)
-def get_embedding_client() -> NVIDIAEmbeddings:
-    """Create and cache the configured NVIDIA embedding client."""
+def get_embedding_client() -> OpenAIEmbeddings:
+    """Create and cache the configured OpenRouter embedding client."""
 
     settings = get_settings()
 
-    if not settings.nvidia_api_key:
-        raise RuntimeError("NVIDIA_API_KEY is not configured.")
+    if not settings.openrouter_api_key:
+        raise RuntimeError("OPENROUTER_API_KEY is not configured.")
 
-    if not settings.model_name:
-        raise RuntimeError("MODEL_NAME is not configured.")
+    if not settings.embedding_model:
+        raise RuntimeError("EMBEDDING_MODEL is not configured.")
 
-    return NVIDIAEmbeddings(
-        model=settings.model_name,
-        api_key=settings.nvidia_api_key,
-        truncate=settings.nvidia_truncate,
+    return OpenAIEmbeddings(
+        model=settings.embedding_model,
+        api_key=settings.openrouter_api_key,
+        base_url=settings.openrouter_base_url,
     )
 
 
