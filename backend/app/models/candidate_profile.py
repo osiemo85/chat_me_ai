@@ -26,8 +26,8 @@ class PersonaOption(StrEnum):
 class CandidateProfileDraft:
     """Table-shape draft for the candidate profile record.
 
-    The actual CV file should live in Supabase storage once configured.
-    The database row should only store storage metadata and identity fields.
+    Uploaded files should live in Supabase storage once configured.
+    The database row should only store identity fields plus pipeline status.
     """
 
     id: UUID
@@ -35,12 +35,12 @@ class CandidateProfileDraft:
     second_name: str
     email: str
     persona: PersonaOption
-    cv_original_filename: str
-    cv_content_type: str = "application/pdf"
     linkedin_url: str | None = None
     github_url: str | None = None
     other_url: str | None = None
-    cv_storage_bucket: str | None = None
-    cv_storage_path: str | None = None
+    public_profile_id: str | None = None
+    upload_status: str = "pending"
+    cv_processing_status: str = "pending"
+    last_error: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
