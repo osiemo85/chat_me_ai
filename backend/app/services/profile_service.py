@@ -622,9 +622,9 @@ def process_profile_submission(
                 upload_status="uploaded",
                 cv_processing_status="embedding",
             )
-            embedding_model = get_settings().model_name
+            embedding_model = get_settings().embedding_model
             if not embedding_model:
-                raise RuntimeError("MODEL_NAME is not configured.")
+                raise RuntimeError("EMBEDDING_MODEL is not configured.")
             _store_embeddings(
                 connection,
                 stored_chunks=stored_chunks,
