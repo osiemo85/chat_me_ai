@@ -1,0 +1,103 @@
+"""Profile upload and public profile routes."""
+
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile, status
+
+from ...schemas.profile import (
+    EditableProfileResponse,
+    ProfileCreateResponse,
+    PublicProfileResponse,
+)
+from ...services.profile_service import (
+    frontend_public_link,
+    get_editable_profile,
+    get_public_profile,
+    prepare_profile_submission,
+    process_profile_submission,
+    validate_upload_payload,
+)
+
+router = APIRouter(prefix="/profiles", tags=["profiles"])
+
+
+@router.post("", response_model=ProfileCreateResponse, status_code=status.HTTP_201_CREATED)
+async def create_profile(
+    background_tasks: BackgroundTasks,
+    first_name: str = Form(..., alias="firstName"),
+    second_name: str = Form(..., alias="secondName"),
+    email: str = Form(...),
+    linkedin_url: str | None = Form(default=None, alias="linkedinUrl"),
+    github_url: str | None = Form(default=None, alias="githubUrl"),
+    other_url: str | None = Form(default=None, alias="otherUrl"),
+    persona: str = Form(...),
+    cv_file: UploadFile = File(..., alias="cvFile"),
+    passport_file: UploadFile = File(..., alias="passportFile"),
+) -> ProfileCreateResponse:
+    """Accept a profile upload and schedule background processing."""
+
+    try:
+        payload = validate_upload_payload(
+            cv_bytes=await cv_file.read(),
+            cv_content_type=cv_file.content_type or "",
+            cv_filename=cv_file.filename or "cv.pdf",
+            email=email,
+            first_name=first_name,
+            github_url=github_url,
+            linkedin_url=linkedin_url,
+            other_url=other_url,
+            passport_bytes=await passport_file.read(),
+            passport_content_type=passport_file.content_type or "",
+            passport_filename=passport_file.filename or "passport-image",
+            persona=persona,
+            second_name=second_name,
+        )
+        prepared = prepare_profile_submission(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to prepare the profile submission.",
+        ) from exc
+
+    background_tasks.add_task(
+        process_profile_submission,
+        candidate_profile_id=prepared.candidate_profile_id,
+        cv_asset_id=prepared.cv_asset_id,
+        cv_bytes=payload.cv_bytes,
+        passport_asset_id=prepared.passport_asset_id,
+        passport_bytes=payload.passport_bytes,
+    )
+
+    return ProfileCreateResponse(
+        is_update=prepared.is_update,
+        public_link=frontend_public_link(
+            first_name=payload.first_name,
+            second_name=payload.second_name,
+            public_profile_id=prepared.public_profile_id,
+        ),
+        public_profile_id=prepared.public_profile_id,
+    )
+
+
+@router.get("/public/{public_profile_id}", response_model=PublicProfileResponse)
+def read_public_profile(public_profile_id: str) -> PublicProfileResponse:
+    """Return the public profile associated with a unique share link."""
+
+    profile = get_public_profile(public_profile_id)
+
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
+
+    return PublicProfileResponse(**profile)
+
+
+@router.get("/edit/{public_profile_id}", response_model=EditableProfileResponse)
+def read_editable_profile(public_profile_id: str) -> EditableProfileResponse:
+    """Return profile fields for the upload update flow."""
+
+    profile = get_editable_profile(public_profile_id)
+
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
+
+    return EditableProfileResponse(**profile)
