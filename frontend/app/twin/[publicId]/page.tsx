@@ -94,9 +94,11 @@ export default async function TwinPage({ params }: TwinPageProps) {
                 I am {fullName}
               </h1>
               <p className="mt-3 max-w-3xl text-base leading-8 text-white/74 sm:text-lg">
-                Welcome to my professional profile. You may review my selected
-                links, view my profile image, and ask questions about my
-                background and experience.
+                Welcome to my professional profile. You are free to ask any
+                questions about my background and experience. You may explore
+                my social links provided to learn more about me. You can send
+                an email directly from the chat interface and I will respond
+                immediately.
               </p>
             </div>
 
