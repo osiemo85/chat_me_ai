@@ -16,7 +16,11 @@ def chat_with_public_twin(
     """Answer a question against the public twin's current CV context."""
 
     try:
-        result = answer_public_question(public_profile_id, payload.message)
+        result = answer_public_question(
+            public_profile_id,
+            payload.message,
+            history=payload.history,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except LookupError as exc:
