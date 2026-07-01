@@ -1,12 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { getApiBaseUrl } from "@/lib/api";
 
 type TwinChatPanelProps = {
   publicProfileId: string;
-  fullName: string;
+  candidateName: string;
+  candidateImageUrl: string | null;
 };
 
 type ChatState = {
@@ -15,25 +18,39 @@ type ChatState = {
   sources: number[];
 };
 
+type HistoryMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+const STARTER_QUESTIONS = [
+  "What are your strongest professional skills?",
+  "Tell me about your work experience.",
+  "What responsibilities have you handled?",
+  "What should an employer know first about you?",
+];
+
 export function TwinChatPanel({
   publicProfileId,
-  fullName,
+  candidateName,
+  candidateImageUrl,
 }: TwinChatPanelProps) {
   const [message, setMessage] = useState("");
-  const [result, setResult] = useState<ChatState | null>(null);
+  const [messages, setMessages] = useState<HistoryMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const trimmedMessage = message.trim();
+  async function submitQuestion(nextMessage: string) {
+    const trimmedMessage = nextMessage.trim();
     if (!trimmedMessage) {
       return;
     }
 
     setIsLoading(true);
     setError(null);
+    const nextHistory = [...messages, { role: "user" as const, content: trimmedMessage }];
+    setMessages(nextHistory);
+    setMessage("");
 
     try {
       const response = await fetch(
@@ -41,7 +58,10 @@ export function TwinChatPanel({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmedMessage }),
+          body: JSON.stringify({
+            message: trimmedMessage,
+            history: messages,
+          }),
         },
       );
 
@@ -55,8 +75,13 @@ export function TwinChatPanel({
         throw new Error(detail ?? "Unable to answer that question.");
       }
 
-      setResult(payload as ChatState);
+      const chatResult = payload as ChatState;
+      setMessages([
+        ...nextHistory,
+        { role: "assistant", content: chatResult.answer },
+      ]);
     } catch (submissionError) {
+      setMessages(messages);
       setError(
         submissionError instanceof Error
           ? submissionError.message
@@ -67,22 +92,113 @@ export function TwinChatPanel({
     }
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitQuestion(message);
+  }
+
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
       <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-        Ask The Twin
+        Chat with {candidateName}
       </p>
       <p className="mt-4 text-base leading-7 text-white/72">
-        Ask about {fullName}&apos;s experience, skills, or background. Greetings
-        are answered directly. CV-based questions are answered only from stored
-        CV context.
+        You are chatting with {candidateName}&apos;s digital twin. Introduce yourself if
+        you want it to remember your name later in the conversation.
       </p>
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        {STARTER_QUESTIONS.map((question) => (
+          <button
+            key={question}
+            type="button"
+            disabled={isLoading}
+            onClick={() => void submitQuestion(question)}
+            className="rounded-full border border-white/12 bg-black/18 px-4 py-2 text-sm text-white/84 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {question}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 space-y-4">
+        {messages.length > 0 ? (
+          messages.map((entry, index) => (
+            <div
+              key={`${entry.role}-${index}-${entry.content.slice(0, 24)}`}
+              className={`flex ${
+                entry.role === "assistant" ? "justify-start" : "justify-end"
+              }`}
+            >
+              <div
+                className={`flex max-w-[90%] items-end gap-3 sm:max-w-[78%] ${
+                  entry.role === "assistant" ? "flex-row" : "flex-row-reverse"
+                }`}
+              >
+                {entry.role === "assistant" ? (
+                  candidateImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={candidateImageUrl}
+                      alt=""
+                      title={candidateName}
+                      className="h-10 w-10 rounded-full border border-white/12 object-cover object-top shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
+                    />
+                  ) : (
+                    <div
+                      title={candidateName}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-cyan-300/12 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100"
+                    >
+                      {candidateName
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </div>
+                  )
+                ) : (
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-xs font-semibold uppercase tracking-[0.12em] text-white/80"
+                    title="You"
+                  >
+                    You
+                  </div>
+                )}
+
+                <div
+                  className={`rounded-[1.5rem] border p-5 ${
+                    entry.role === "assistant"
+                      ? "border-cyan-300/20 bg-cyan-400/8"
+                      : "border-white/10 bg-black/18"
+                  }`}
+                >
+                  <div className="markdown-answer text-sm leading-7 text-white/78">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {entry.content}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[1.5rem] border border-dashed border-white/12 bg-black/12 p-5 text-sm leading-7 text-white/52">
+            Start the conversation. Example: &quot;Hi, I am Alber. Tell me about your strongest skills.&quot;
+          </div>
+        )}
+      </div>
+
+      {error ? (
+        <p className="mt-4 rounded-[1.25rem] border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+          {error}
+        </p>
+      ) : null}
 
       <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
         <textarea
           value={message}
           onChange={(event) => setMessage(event.target.value)}
-          placeholder="Ask a question about this candidate"
+          placeholder={`Ask ${candidateName} a professional question`}
           className="min-h-32 w-full rounded-[1.5rem] border border-white/10 bg-black/18 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-sky-300"
         />
 
@@ -94,26 +210,6 @@ export function TwinChatPanel({
           {isLoading ? "Answering..." : "Ask Question"}
         </button>
       </form>
-
-      {error ? (
-        <p className="mt-4 rounded-[1.25rem] border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-          {error}
-        </p>
-      ) : null}
-
-      {result ? (
-        <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-black/18 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100">
-            Answer
-          </p>
-          <p className="mt-3 text-sm leading-7 text-white/78">{result.answer}</p>
-          <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/45">
-            {result.usedContext
-              ? `CV context used: chunks ${result.sources.join(", ")}`
-              : "No CV context used"}
-          </p>
-        </div>
-      ) : null}
     </section>
   );
 }
