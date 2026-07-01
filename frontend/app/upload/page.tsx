@@ -62,6 +62,8 @@ type EditableProfile = {
   otherUrl: string | null;
   persona: string;
   publicProfileId: string;
+  cvFileName: string | null;
+  passportFileName: string | null;
 };
 
 type AuthUser = {
@@ -148,7 +150,9 @@ function UploadPageContent() {
     useState<SubmissionResult | null>(null);
   const [profileStatus, setProfileStatus] = useState<PublicProfile | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [existingProfileId, setExistingProfileId] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pollingTimerRef = useRef<number | null>(null);
 
   const completion = useMemo(() => {
@@ -166,6 +170,7 @@ function UploadPageContent() {
   }, [form]);
 
   const activePublicId = submissionResult?.public_profile_id ?? normalizedPublicId;
+  const activeEditableProfileId = normalizedPublicId ?? existingProfileId;
   const processStage = resolveStage(profileStatus, isSubmitting);
   const isProcessingView =
     isSubmitting ||
@@ -242,10 +247,6 @@ function UploadPageContent() {
       return;
     }
 
-    if (!normalizedPublicId) {
-      return;
-    }
-
     let cancelled = false;
 
     async function prefill() {
@@ -253,9 +254,11 @@ function UploadPageContent() {
       setPrefillError(null);
 
       try {
-        const response = await fetch(
-          `${getApiBaseUrl()}/api/v1/profiles/edit/${normalizedPublicId}`,
-          { cache: "no-store", credentials: "include" },
+        const response = await apiFetch(
+          normalizedPublicId
+            ? `/api/v1/profiles/edit/${normalizedPublicId}`
+            : "/api/v1/profiles/edit/me",
+          { cache: "no-store" },
         );
 
         const payload = (await response.json()) as
@@ -263,6 +266,13 @@ function UploadPageContent() {
           | { detail?: string };
 
         if (!response.ok) {
+          if (response.status === 404 && !normalizedPublicId) {
+            if (!cancelled) {
+              setExistingProfileId(null);
+            }
+            return;
+          }
+
           throw new Error(
             "detail" in payload && payload.detail
               ? payload.detail
@@ -287,7 +297,10 @@ function UploadPageContent() {
           githubUrl: payload.githubUrl ?? "",
           otherUrl: payload.otherUrl ?? "",
           persona: payload.persona,
+          cvFileName: payload.cvFileName ?? "",
+          passportFileName: payload.passportFileName ?? "",
         }));
+        setExistingProfileId(payload.publicProfileId);
       } catch (error) {
         if (!cancelled) {
           setPrefillError(
@@ -398,12 +411,18 @@ function UploadPageContent() {
 
   function handleCvFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    updateField("cvFileName", file?.name ?? "");
+    if (!file) {
+      return;
+    }
+    updateField("cvFileName", file.name);
   }
 
   function handlePassportFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    updateField("passportFileName", file?.name ?? "");
+    if (!file) {
+      return;
+    }
+    updateField("passportFileName", file.name);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -476,10 +495,19 @@ function UploadPageContent() {
   }
 
   async function handleLogout() {
-    await apiFetch("/api/v1/auth/logout", {
-      method: "POST",
-    });
-    router.replace("/login");
+    setIsLoggingOut(true);
+
+    try {
+      await apiFetch("/api/v1/auth/logout", {
+        method: "POST",
+      });
+      router.replace("/login");
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error ? error.message : "Unable to log out right now.",
+      );
+      setIsLoggingOut(false);
+    }
   }
 
   const processSteps = [
@@ -522,7 +550,7 @@ function UploadPageContent() {
               Upload Profile
             </p>
             <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">
-              {normalizedPublicId ? "Update your AI twin" : "Build your AI twin profile"}
+              {activeEditableProfileId ? "Update your AI twin" : "Build your AI twin profile"}
             </h1>
             <p className="mt-3 max-w-2xl text-lg leading-8 text-white/70">
               Add required identity details, your CV PDF, passport photo, and
@@ -541,9 +569,10 @@ function UploadPageContent() {
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-black/20 px-6 font-semibold text-white transition hover:bg-white/12"
+              disabled={isLoggingOut}
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-black/20 px-6 font-semibold text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Logout
+              {isLoggingOut ? "Logging out..." : "Logout"}
             </button>
           </div>
         </div>
@@ -635,17 +664,22 @@ function UploadPageContent() {
               Share your live twin
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-emerald-50/80">
-              Your profile has finished processing. Use the public link below or
-              return to the upload page to replace details with prefilled values.
+              This link is public and shareable. Copy it now and keep it safe.
+              It appears on this page only and will disappear after a page
+              reload.
             </p>
 
             <div className="mt-6 rounded-[1.5rem] border border-emerald-200/20 bg-black/15 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100/80">
                 Shareable link
               </p>
+              <p className="mt-2 text-sm leading-7 text-emerald-50/78">
+                Share this public link with employers or anyone you want to
+                review your AI twin profile.
+              </p>
               <a
                 href={shareableLink}
-                className="mt-2 block break-all font-semibold text-white underline"
+                className="mt-3 block break-all font-semibold text-white underline"
               >
                 {shareableLink}
               </a>
@@ -660,7 +694,7 @@ function UploadPageContent() {
                 {copied ? "Copied" : "Copy Link"}
               </button>
               <Link
-                href={`/upload?publicId=${submissionResult.public_profile_id}`}
+                href="/upload"
                 className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-6 font-semibold text-slate-950 transition hover:bg-sky-300"
               >
                 Update
@@ -792,7 +826,7 @@ function UploadPageContent() {
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-white/84">
-                    CV PDF *
+                    CV PDF {activeEditableProfileId ? "" : "*"}
                   </span>
                   <input
                     name="cvFile"
@@ -805,7 +839,7 @@ function UploadPageContent() {
 
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-white/84">
-                    Passport photo *
+                    Passport photo {activeEditableProfileId ? "" : "*"}
                   </span>
                   <input
                     name="passportFile"
@@ -823,12 +857,12 @@ function UploadPageContent() {
                   disabled={isSubmitting || isPrefilling}
                   className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.35)] transition hover:scale-[1.02] hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {normalizedPublicId ? "Update AI Twin" : "Create AI Twin"}
+                  {activeEditableProfileId ? "Update AI Twin" : "Create AI Twin"}
                 </button>
                 <p className="text-sm text-white/58">
-                  {normalizedPublicId
-                    ? "Text fields are prefilled. Re-upload the current CV and passport photo to replace stored files."
-                    : "Files are handled by FastAPI and stored in Supabase with a stable public profile ID."}
+                  {activeEditableProfileId
+                    ? "Stored details are prefilled from your profile. Upload new files only if you want to replace the current CV or passport photo."
+                    : "Create your profile by adding identity details, a CV PDF, and a passport photo."}
                 </p>
               </div>
 
@@ -854,8 +888,9 @@ function UploadPageContent() {
                   {completion}%
                 </p>
                 <p className="mt-2 text-sm leading-7 text-white/66">
-                  Required: first name, second name, email, persona, CV PDF, and
-                  passport photo.
+                  {activeEditableProfileId
+                    ? "Stored profile details are loaded from the database. Replace only the fields or files you want to update."
+                    : "Required: first name, second name, email, persona, CV PDF, and passport photo."}
                 </p>
               </div>
 
@@ -906,17 +941,6 @@ function UploadPageContent() {
                     </dd>
                   </div>
                 </dl>
-              </div>
-
-              <div className="rounded-[2rem] border border-white/10 bg-black/20 p-6">
-                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-100">
-                  Storage pipeline
-                </p>
-                <ul className="mt-4 space-y-2 text-sm leading-7 text-white/68">
-                  <li>Supabase stores the current CV and passport photo</li>
-                  <li>Aiven stores the stable public ID and current asset metadata</li>
-                  <li>Background processing reads the CV and prepares the twin state</li>
-                </ul>
               </div>
 
               {prefillError ? (
