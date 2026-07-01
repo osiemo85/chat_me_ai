@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 4
     retrieval_min_score: float = 0.2
     frontend_origin: str = "http://localhost:3000"
+    auth_session_cookie_name: str = "chat_me_ai_session"
+    auth_session_days: int = 30
+    auth_password_iterations: int = 600000
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
     max_upload_bytes: int = 10 * 1024 * 1024
     chunk_overlap: int = 200
     chunk_size: int = 1200
