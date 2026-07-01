@@ -1,7 +1,9 @@
 """Profile upload and public profile routes."""
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 
+from ...dependencies import require_authenticated_user
+from ...services.auth_service import AuthenticatedUser
 from ...schemas.profile import (
     EditableProfileResponse,
     ProfileCreateResponse,
@@ -9,7 +11,7 @@ from ...schemas.profile import (
 )
 from ...services.profile_service import (
     frontend_public_link,
-    get_editable_profile,
+    get_editable_profile_for_user,
     get_public_profile,
     prepare_profile_submission,
     process_profile_submission,
@@ -22,9 +24,10 @@ router = APIRouter(prefix="/profiles", tags=["profiles"])
 @router.post("", response_model=ProfileCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
     background_tasks: BackgroundTasks,
+    current_user: AuthenticatedUser = Depends(require_authenticated_user),
     first_name: str = Form(..., alias="firstName"),
     second_name: str = Form(..., alias="secondName"),
-    email: str = Form(...),
+    email: str | None = Form(default=None),
     linkedin_url: str | None = Form(default=None, alias="linkedinUrl"),
     github_url: str | None = Form(default=None, alias="githubUrl"),
     other_url: str | None = Form(default=None, alias="otherUrl"),
@@ -39,7 +42,7 @@ async def create_profile(
             cv_bytes=await cv_file.read(),
             cv_content_type=cv_file.content_type or "",
             cv_filename=cv_file.filename or "cv.pdf",
-            email=email,
+            email=email or current_user.email,
             first_name=first_name,
             github_url=github_url,
             linkedin_url=linkedin_url,
@@ -49,6 +52,7 @@ async def create_profile(
             passport_filename=passport_file.filename or "passport-image",
             persona=persona,
             second_name=second_name,
+            user=current_user,
         )
         prepared = prepare_profile_submission(payload)
     except ValueError as exc:
@@ -92,10 +96,13 @@ def read_public_profile(public_profile_id: str) -> PublicProfileResponse:
 
 
 @router.get("/edit/{public_profile_id}", response_model=EditableProfileResponse)
-def read_editable_profile(public_profile_id: str) -> EditableProfileResponse:
+def read_editable_profile(
+    public_profile_id: str,
+    current_user: AuthenticatedUser = Depends(require_authenticated_user),
+) -> EditableProfileResponse:
     """Return profile fields for the upload update flow."""
 
-    profile = get_editable_profile(public_profile_id)
+    profile = get_editable_profile_for_user(public_profile_id, user_id=current_user.id)
 
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")

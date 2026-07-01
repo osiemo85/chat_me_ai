@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 
-import { getApiBaseUrl } from "@/lib/api";
+import { apiFetch, getApiBaseUrl } from "@/lib/api";
 
 const personaOptions = [
   "Professional",
@@ -62,6 +62,17 @@ type EditableProfile = {
   otherUrl: string | null;
   persona: string;
   publicProfileId: string;
+};
+
+type AuthUser = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
+type AuthMeResponse = {
+  user: AuthUser;
 };
 
 type ProcessStage = "idle" | "uploading" | "extracting" | "preparing" | "ready" | "failed";
@@ -136,6 +147,8 @@ function UploadPageContent() {
   const [submissionResult, setSubmissionResult] =
     useState<SubmissionResult | null>(null);
   const [profileStatus, setProfileStatus] = useState<PublicProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
   const pollingTimerRef = useRef<number | null>(null);
 
   const completion = useMemo(() => {
@@ -166,6 +179,69 @@ function UploadPageContent() {
   const shareableLink = submissionResult?.public_link ?? null;
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadCurrentUser() {
+      try {
+        const response = await apiFetch("/api/v1/auth/me", {
+          cache: "no-store",
+        });
+
+        if (response.status === 401) {
+          router.replace("/login");
+          return;
+        }
+
+        const payload = (await response.json()) as
+          | AuthMeResponse
+          | { detail?: string };
+
+        if (!response.ok || !("user" in payload)) {
+          throw new Error(
+            "detail" in payload && payload.detail
+              ? payload.detail
+              : "Unable to load your account.",
+          );
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentUser(payload.user);
+        setForm((current) => ({
+          ...current,
+          firstName: current.firstName || payload.user.firstName,
+          secondName: current.secondName || payload.user.lastName,
+          email: payload.user.email,
+        }));
+      } catch (error) {
+        if (!cancelled) {
+          setSubmissionError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load your account.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAuthenticating(false);
+        }
+      }
+    }
+
+    void loadCurrentUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (isAuthenticating || !currentUser) {
+      return;
+    }
+
     if (!normalizedPublicId) {
       return;
     }
@@ -179,7 +255,7 @@ function UploadPageContent() {
       try {
         const response = await fetch(
           `${getApiBaseUrl()}/api/v1/profiles/edit/${normalizedPublicId}`,
-          { cache: "no-store" },
+          { cache: "no-store", credentials: "include" },
         );
 
         const payload = (await response.json()) as
@@ -206,7 +282,7 @@ function UploadPageContent() {
           ...current,
           firstName: payload.firstName,
           secondName: payload.secondName,
-          email: payload.email,
+          email: currentUser?.email ?? payload.email,
           linkedinUrl: payload.linkedinUrl ?? "",
           githubUrl: payload.githubUrl ?? "",
           otherUrl: payload.otherUrl ?? "",
@@ -232,7 +308,7 @@ function UploadPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [normalizedPublicId]);
+  }, [currentUser, isAuthenticating, normalizedPublicId]);
 
   useEffect(() => {
     return () => {
@@ -258,10 +334,9 @@ function UploadPageContent() {
 
     async function pollStatus() {
       try {
-        const response = await fetch(
-          `${getApiBaseUrl()}/api/v1/profiles/public/${activePublicId}`,
-          { cache: "no-store" },
-        );
+        const response = await fetch(`${getApiBaseUrl()}/api/v1/profiles/public/${activePublicId}`, {
+          cache: "no-store",
+        });
 
         const payload = (await response.json()) as
           | PublicProfile
@@ -342,6 +417,7 @@ function UploadPageContent() {
 
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/v1/profiles`, {
+        credentials: "include",
         body: formData,
         method: "POST",
       });
@@ -351,6 +427,11 @@ function UploadPageContent() {
         | { detail?: string; error?: string };
 
       if (!response.ok) {
+        if (response.status === 401) {
+          router.replace("/login");
+          return;
+        }
+
         const errorMessage =
           "detail" in payload
             ? payload.detail
@@ -392,6 +473,13 @@ function UploadPageContent() {
 
     await navigator.clipboard.writeText(shareableLink);
     setCopied(true);
+  }
+
+  async function handleLogout() {
+    await apiFetch("/api/v1/auth/logout", {
+      method: "POST",
+    });
+    router.replace("/login");
   }
 
   const processSteps = [
@@ -443,15 +531,32 @@ function UploadPageContent() {
             </p>
           </div>
 
-          <Link
-            href="/"
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-6 font-semibold text-white transition hover:bg-white/12"
-          >
-            Back to Home
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/"
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-6 font-semibold text-white transition hover:bg-white/12"
+            >
+              Back to Home
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-black/20 px-6 font-semibold text-white transition hover:bg-white/12"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
-        {isProcessingView ? (
+        {isAuthenticating ? (
+          <section className="rounded-[2rem] border border-white/10 bg-white/8 p-8 backdrop-blur-xl">
+            <div className="mx-auto flex min-h-[24rem] max-w-xl items-center justify-center">
+              <div className="h-20 w-20 animate-spin rounded-full border-4 border-white/12 border-t-sky-400" />
+            </div>
+          </section>
+        ) : null}
+
+        {!isAuthenticating && isProcessingView ? (
           <section className="rounded-[2rem] border border-white/10 bg-white/8 p-8 backdrop-blur-xl">
             <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div className="flex flex-col items-center justify-center rounded-[1.8rem] border border-sky-300/20 bg-black/20 px-6 py-10 text-center">
@@ -521,7 +626,7 @@ function UploadPageContent() {
           </section>
         ) : null}
 
-        {isCompleteView && shareableLink ? (
+        {!isAuthenticating && isCompleteView && shareableLink ? (
           <section className="rounded-[2rem] border border-emerald-400/25 bg-emerald-400/10 p-8 backdrop-blur-xl">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-emerald-100">
               AI Twin Ready
@@ -570,7 +675,7 @@ function UploadPageContent() {
           </section>
         ) : null}
 
-        {!isProcessingView && !isCompleteView ? (
+        {!isAuthenticating && !isProcessingView && !isCompleteView ? (
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <form
               onSubmit={handleSubmit}
@@ -613,9 +718,9 @@ function UploadPageContent() {
                     name="email"
                     type="email"
                     value={form.email}
-                    onChange={(event) => updateField("email", event.target.value)}
+                    readOnly
                     placeholder="ada@example.com"
-                    className="w-full rounded-2xl border border-white/12 bg-black/20 px-4 py-3 text-white outline-none transition placeholder:text-white/32 focus:border-sky-300/60"
+                    className="w-full rounded-2xl border border-white/12 bg-black/10 px-4 py-3 text-white/78 outline-none placeholder:text-white/32"
                   />
                 </label>
 

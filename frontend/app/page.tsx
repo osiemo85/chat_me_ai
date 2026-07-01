@@ -29,12 +29,20 @@ export default function Home() {
           <p className="text-xs font-medium uppercase tracking-[0.35em] text-[var(--accent)]">
             Chat Me AI
           </p>
-          <Link
-            href="/upload"
-            className="rounded-full bg-sky-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-300"
-          >
-            Get Started
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/login"
+              className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/12"
+            >
+              Login
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-full bg-sky-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-300"
+            >
+              Register
+            </Link>
+          </div>
         </header>
 
         <div className="flex flex-1 flex-col">
@@ -60,6 +68,21 @@ export default function Home() {
                   </span>
                 ))}
               </div>
+
+              <div className="mt-8 flex flex-wrap justify-center gap-4">
+                <Link
+                  href="/register"
+                  className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
+                >
+                  Create Account
+                </Link>
+                <Link
+                  href="/login"
+                  className="inline-flex min-h-14 items-center justify-center rounded-full border border-white/12 bg-white/8 px-8 text-lg font-semibold text-white transition hover:bg-white/12"
+                >
+                  Login
+                </Link>
+              </div>
             </div>
           </section>
 
@@ -78,10 +101,10 @@ export default function Home() {
 
               <div className="mt-6">
                 <Link
-                  href="/upload"
+                  href="/register"
                   className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
                 >
-                  Get Started
+                  Create Account
                 </Link>
               </div>
             </div>

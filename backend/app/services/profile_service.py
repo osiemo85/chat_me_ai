@@ -14,6 +14,7 @@ from psycopg.types.json import Jsonb
 
 from ..config import get_settings
 from ..db import get_connection
+from .auth_service import AuthenticatedUser, ensure_auth_schema
 from .chunking_service import chunk_text
 from .cv_parser_service import extract_pdf_text
 from .embedding_service import embed_texts
@@ -25,6 +26,7 @@ Status = Literal["pending", "uploading", "uploaded", "extracting", "chunked", "c
 SCHEMA_SQL = """
 create table if not exists candidate_profiles (
   id uuid primary key,
+  user_id uuid references auth_users(id) on delete cascade,
   first_name varchar(100) not null,
   second_name varchar(100) not null,
   email varchar(255) not null unique,
@@ -75,11 +77,19 @@ create table if not exists chunks (
 
 create index if not exists chunks_profile_lookup_idx
   on chunks (candidate_profile_id, profile_asset_id, chunk_index);
+
+alter table candidate_profiles
+  add column if not exists user_id uuid references auth_users(id) on delete cascade;
+
+create unique index if not exists candidate_profiles_user_id_unique
+  on candidate_profiles (user_id)
+  where user_id is not null;
 """
 
 
 @dataclass(slots=True)
 class UploadedPayload:
+    user_id: str
     first_name: str
     second_name: str
     email: str
@@ -145,6 +155,8 @@ def _asset_storage_path(public_profile_id: str, asset_type: AssetType, filename:
 def ensure_schema() -> None:
     """Ensure database tables and the storage bucket exist."""
 
+    ensure_auth_schema()
+
     with get_connection(autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(SCHEMA_SQL)
@@ -176,10 +188,11 @@ def _get_or_create_candidate(connection: Connection, payload: UploadedPayload) -
             """
             select id, public_profile_id
             from candidate_profiles
-            where email = %s
+            where user_id = %s
+               or (user_id is null and email = %s)
             for update
             """,
-            (payload.email,),
+            (payload.user_id, payload.email),
         )
         row = cursor.fetchone()
 
@@ -188,6 +201,7 @@ def _get_or_create_candidate(connection: Connection, payload: UploadedPayload) -
                 """
                 update candidate_profiles
                 set
+                  user_id = %s,
                   first_name = %s,
                   second_name = %s,
                   linkedin_url = %s,
@@ -201,6 +215,7 @@ def _get_or_create_candidate(connection: Connection, payload: UploadedPayload) -
                 where id = %s
                 """,
                 (
+                    payload.user_id,
                     payload.first_name,
                     payload.second_name,
                     payload.linkedin_url,
@@ -221,6 +236,7 @@ def _get_or_create_candidate(connection: Connection, payload: UploadedPayload) -
             """
             insert into candidate_profiles (
               id,
+              user_id,
               first_name,
               second_name,
               email,
@@ -234,10 +250,11 @@ def _get_or_create_candidate(connection: Connection, payload: UploadedPayload) -
               created_at,
               updated_at
             )
-            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', 'pending', %s, %s)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', 'pending', %s, %s)
             """,
             (
                 candidate_profile_id,
+                payload.user_id,
                 payload.first_name,
                 payload.second_name,
                 payload.email,
@@ -722,7 +739,11 @@ def get_public_profile(public_profile_id: str) -> dict[str, object] | None:
     }
 
 
-def get_editable_profile(public_profile_id: str) -> dict[str, object] | None:
+def get_editable_profile_for_user(
+    public_profile_id: str,
+    *,
+    user_id: str,
+) -> dict[str, object] | None:
     """Return profile fields needed to prepopulate the update form."""
 
     ensure_schema()
@@ -742,9 +763,10 @@ def get_editable_profile(public_profile_id: str) -> dict[str, object] | None:
                   public_profile_id
                 from candidate_profiles
                 where public_profile_id = %s
+                  and user_id = %s
                 limit 1
                 """,
-                (public_profile_id,),
+                (public_profile_id, user_id),
             )
             row = cursor.fetchone()
 
@@ -792,13 +814,14 @@ def validate_upload_payload(
     passport_filename: str,
     persona: str,
     second_name: str,
+    user: AuthenticatedUser,
 ) -> UploadedPayload:
     """Validate raw upload fields before persisting anything."""
 
     settings = get_settings()
 
-    if not first_name.strip() or not second_name.strip() or not email.strip():
-        raise ValueError("First name, second name, and email are required.")
+    if not first_name.strip() or not second_name.strip():
+        raise ValueError("First name and second name are required.")
 
     if not persona.strip():
         raise ValueError("Persona is required.")
@@ -823,9 +846,10 @@ def validate_upload_payload(
         raise ValueError("Passport photo exceeds the maximum upload size.")
 
     return UploadedPayload(
+        user_id=user.id,
         first_name=first_name.strip(),
         second_name=second_name.strip(),
-        email=email.strip().lower(),
+        email=user.email,
         linkedin_url=_normalize_optional(linkedin_url),
         github_url=_normalize_optional(github_url),
         other_url=_normalize_optional(other_url),
