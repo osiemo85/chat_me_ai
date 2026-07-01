@@ -1,4 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { apiFetch } from "@/lib/api";
 
 const chips = [
   "AI Twin",
@@ -14,7 +20,112 @@ const steps = [
   "Add LinkedIn, GitHub, or other links",
 ];
 
+function HomeActions({
+  isAuthenticated,
+  isLoading,
+  isLoggingOut,
+  onLogout,
+}: {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  isLoggingOut: boolean;
+  onLogout: () => Promise<void>;
+}) {
+  if (isLoading) {
+    return <div className="h-10 w-40 rounded-full border border-white/10 bg-white/6" />;
+  }
+
+  if (isAuthenticated) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href="/upload"
+          className="rounded-full bg-sky-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-300"
+        >
+          Go to Upload
+        </Link>
+        <button
+          type="button"
+          onClick={() => void onLogout()}
+          disabled={isLoggingOut}
+          className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {isLoggingOut ? "Logging out..." : "Logout"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Link
+        href="/login"
+        className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/12"
+      >
+        Login
+      </Link>
+      <Link
+        href="/register"
+        className="rounded-full bg-sky-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-300"
+      >
+        Register
+      </Link>
+    </div>
+  );
+}
+
 export default function Home() {
+  const router = useRouter();
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAuthState() {
+      try {
+        const response = await apiFetch("/api/v1/auth/me", {
+          cache: "no-store",
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setIsAuthenticated(response.ok);
+      } catch {
+        if (!cancelled) {
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAuthLoading(false);
+        }
+      }
+    }
+
+    void loadAuthState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+
+    try {
+      await apiFetch("/api/v1/auth/logout", {
+        method: "POST",
+      });
+      setIsAuthenticated(false);
+      router.refresh();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }
+
   return (
     <main className="relative isolate overflow-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="pointer-events-none absolute inset-0 -z-10">
@@ -29,20 +140,12 @@ export default function Home() {
           <p className="text-xs font-medium uppercase tracking-[0.35em] text-[var(--accent)]">
             Chat Me AI
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/login"
-              className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/12"
-            >
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-full bg-sky-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-300"
-            >
-              Register
-            </Link>
-          </div>
+          <HomeActions
+            isAuthenticated={isAuthenticated}
+            isLoading={isAuthLoading}
+            isLoggingOut={isLoggingOut}
+            onLogout={handleLogout}
+          />
         </header>
 
         <div className="flex flex-1 flex-col">
@@ -69,20 +172,43 @@ export default function Home() {
                 ))}
               </div>
 
-              <div className="mt-8 flex flex-wrap justify-center gap-4">
-                <Link
-                  href="/register"
-                  className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
-                >
-                  Create Account
-                </Link>
-                <Link
-                  href="/login"
-                  className="inline-flex min-h-14 items-center justify-center rounded-full border border-white/12 bg-white/8 px-8 text-lg font-semibold text-white transition hover:bg-white/12"
-                >
-                  Login
-                </Link>
-              </div>
+              {!isAuthLoading ? (
+                <div className="mt-8 flex flex-wrap justify-center gap-4">
+                  {isAuthenticated ? (
+                    <>
+                      <Link
+                        href="/upload"
+                        className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
+                      >
+                        Go to Upload
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void handleLogout()}
+                        disabled={isLoggingOut}
+                        className="inline-flex min-h-14 items-center justify-center rounded-full border border-white/12 bg-white/8 px-8 text-lg font-semibold text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {isLoggingOut ? "Logging out..." : "Logout"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/register"
+                        className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
+                      >
+                        Create Account
+                      </Link>
+                      <Link
+                        href="/login"
+                        className="inline-flex min-h-14 items-center justify-center rounded-full border border-white/12 bg-white/8 px-8 text-lg font-semibold text-white transition hover:bg-white/12"
+                      >
+                        Login
+                      </Link>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -100,12 +226,21 @@ export default function Home() {
               </p>
 
               <div className="mt-6">
-                <Link
-                  href="/register"
-                  className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
-                >
-                  Create Account
-                </Link>
+                {isAuthLoading ? null : isAuthenticated ? (
+                  <Link
+                    href="/upload"
+                    className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
+                  >
+                    Go to Upload
+                  </Link>
+                ) : (
+                  <Link
+                    href="/register"
+                    className="inline-flex min-h-14 items-center justify-center rounded-full bg-sky-400 px-8 text-lg font-semibold text-slate-950 shadow-[0_0_40px_rgba(56,189,248,0.4)] transition hover:scale-[1.02] hover:bg-sky-300"
+                  >
+                    Create Account
+                  </Link>
+                )}
               </div>
             </div>
 
