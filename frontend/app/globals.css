@@ -124,3 +124,54 @@ a {
     background-size: 42px 42px;
   }
 }
+
+.markdown-answer > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-answer > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-answer p,
+.markdown-answer ul,
+.markdown-answer ol,
+.markdown-answer blockquote {
+  margin: 0.85rem 0;
+}
+
+.markdown-answer ul,
+.markdown-answer ol {
+  padding-left: 1.35rem;
+}
+
+.markdown-answer ul {
+  list-style: disc;
+}
+
+.markdown-answer ol {
+  list-style: decimal;
+}
+
+.markdown-answer li + li {
+  margin-top: 0.35rem;
+}
+
+.markdown-answer strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.markdown-answer a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.markdown-answer code {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.92em;
+}
