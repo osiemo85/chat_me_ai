@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.router import api_router
 from .config import get_settings
+from .services.auth_service import ensure_auth_schema
 from .services.profile_service import ensure_schema
 
 
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def startup() -> None:
+        ensure_auth_schema()
         ensure_schema()
 
     return app
