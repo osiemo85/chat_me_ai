@@ -97,21 +97,22 @@ class UploadedPayload:
     github_url: str | None
     other_url: str | None
     persona: str
-    cv_content_type: str
-    cv_filename: str
-    cv_bytes: bytes
-    passport_content_type: str
-    passport_filename: str
-    passport_bytes: bytes
+    cv_content_type: str | None
+    cv_filename: str | None
+    cv_bytes: bytes | None
+    passport_content_type: str | None
+    passport_filename: str | None
+    passport_bytes: bytes | None
 
 
 @dataclass(slots=True)
 class PreparedSubmission:
     candidate_profile_id: str
-    cv_asset_id: str
+    cv_asset_id: str | None
     is_update: bool
-    passport_asset_id: str
+    passport_asset_id: str | None
     public_profile_id: str
+    requires_processing: bool
 
 
 def _now() -> datetime:
@@ -180,7 +181,12 @@ def _next_asset_version(connection: Connection, candidate_profile_id: str, asset
     return int(row["next_version"]) if row else 1
 
 
-def _get_or_create_candidate(connection: Connection, payload: UploadedPayload) -> tuple[str, str, bool]:
+def _get_or_create_candidate(
+    connection: Connection,
+    payload: UploadedPayload,
+    *,
+    reset_processing_status: bool,
+) -> tuple[str, str, bool]:
     now = _now()
 
     with connection.cursor() as cursor:
@@ -197,34 +203,38 @@ def _get_or_create_candidate(connection: Connection, payload: UploadedPayload) -
         row = cursor.fetchone()
 
         if row:
+            parts = [
+                "user_id = %s",
+                "first_name = %s",
+                "second_name = %s",
+                "linkedin_url = %s",
+                "github_url = %s",
+                "other_url = %s",
+                "persona = %s",
+            ]
+            values: list[object] = [
+                payload.user_id,
+                payload.first_name,
+                payload.second_name,
+                payload.linkedin_url,
+                payload.github_url,
+                payload.other_url,
+                payload.persona,
+            ]
+
+            if reset_processing_status:
+                parts.extend(["upload_status = 'pending'", "cv_processing_status = 'pending'"])
+
+            parts.extend(["last_error = null", "updated_at = %s"])
+            values.extend([now, row["id"]])
+
             cursor.execute(
-                """
+                f"""
                 update candidate_profiles
-                set
-                  user_id = %s,
-                  first_name = %s,
-                  second_name = %s,
-                  linkedin_url = %s,
-                  github_url = %s,
-                  other_url = %s,
-                  persona = %s,
-                  upload_status = 'pending',
-                  cv_processing_status = 'pending',
-                  last_error = null,
-                  updated_at = %s
+                set {", ".join(parts)}
                 where id = %s
                 """,
-                (
-                    payload.user_id,
-                    payload.first_name,
-                    payload.second_name,
-                    payload.linkedin_url,
-                    payload.github_url,
-                    payload.other_url,
-                    payload.persona,
-                    now,
-                    row["id"],
-                ),
+                values,
             )
 
             return str(row["id"]), str(row["public_profile_id"]), True
@@ -327,27 +337,40 @@ def prepare_profile_submission(payload: UploadedPayload) -> PreparedSubmission:
 
     ensure_schema()
 
+    has_cv_update = payload.cv_bytes is not None
+    has_passport_update = payload.passport_bytes is not None
+    requires_processing = has_cv_update or has_passport_update
+
     with get_connection() as connection:
         candidate_profile_id, public_profile_id, is_update = _get_or_create_candidate(
             connection,
             payload,
+            reset_processing_status=requires_processing,
         )
-        cv_asset_id = _insert_pending_asset(
-            connection,
-            asset_type="cv",
-            candidate_profile_id=candidate_profile_id,
-            content_type=payload.cv_content_type,
-            filename=payload.cv_filename,
-            public_profile_id=public_profile_id,
-        )
-        passport_asset_id = _insert_pending_asset(
-            connection,
-            asset_type="passport_photo",
-            candidate_profile_id=candidate_profile_id,
-            content_type=payload.passport_content_type,
-            filename=payload.passport_filename,
-            public_profile_id=public_profile_id,
-        )
+        if not is_update and not requires_processing:
+            raise ValueError("A CV PDF and passport photo are required.")
+
+        cv_asset_id = None
+        if has_cv_update and payload.cv_content_type and payload.cv_filename:
+            cv_asset_id = _insert_pending_asset(
+                connection,
+                asset_type="cv",
+                candidate_profile_id=candidate_profile_id,
+                content_type=payload.cv_content_type,
+                filename=payload.cv_filename,
+                public_profile_id=public_profile_id,
+            )
+
+        passport_asset_id = None
+        if has_passport_update and payload.passport_content_type and payload.passport_filename:
+            passport_asset_id = _insert_pending_asset(
+                connection,
+                asset_type="passport_photo",
+                candidate_profile_id=candidate_profile_id,
+                content_type=payload.passport_content_type,
+                filename=payload.passport_filename,
+                public_profile_id=public_profile_id,
+            )
         connection.commit()
 
     return PreparedSubmission(
@@ -356,6 +379,7 @@ def prepare_profile_submission(payload: UploadedPayload) -> PreparedSubmission:
         is_update=is_update,
         passport_asset_id=passport_asset_id,
         public_profile_id=public_profile_id,
+        requires_processing=requires_processing,
     )
 
 
@@ -567,10 +591,10 @@ def _store_embeddings(
 def process_profile_submission(
     *,
     candidate_profile_id: str,
-    cv_asset_id: str,
-    cv_bytes: bytes,
-    passport_asset_id: str,
-    passport_bytes: bytes,
+    cv_asset_id: str | None,
+    cv_bytes: bytes | None,
+    passport_asset_id: str | None,
+    passport_bytes: bytes | None,
 ) -> None:
     """Upload assets, extract CV text, and persist chunk content."""
 
@@ -584,32 +608,36 @@ def process_profile_submission(
                 connection,
                 candidate_profile_id,
                 upload_status="uploading",
-                cv_processing_status="pending",
+                cv_processing_status="pending" if cv_asset_id else "completed",
             )
-            cv_path = _current_storage_path(connection, cv_asset_id)
-            passport_path = _current_storage_path(connection, passport_asset_id)
-            cv_content_type = _content_type_for_asset(connection, cv_asset_id)
-            passport_content_type = _content_type_for_asset(connection, passport_asset_id)
+            old_cv_path = None
+            old_passport_path = None
 
-            upload_file(path=cv_path, content=cv_bytes, content_type=cv_content_type)
-            upload_file(
-                path=passport_path,
-                content=passport_bytes,
-                content_type=passport_content_type,
-            )
+            if cv_asset_id and cv_bytes is not None:
+                cv_path = _current_storage_path(connection, cv_asset_id)
+                cv_content_type = _content_type_for_asset(connection, cv_asset_id)
+                upload_file(path=cv_path, content=cv_bytes, content_type=cv_content_type)
+                old_cv_path = _replace_current_asset(
+                    connection,
+                    candidate_profile_id=candidate_profile_id,
+                    asset_id=cv_asset_id,
+                    asset_type="cv",
+                )
 
-            old_cv_path = _replace_current_asset(
-                connection,
-                candidate_profile_id=candidate_profile_id,
-                asset_id=cv_asset_id,
-                asset_type="cv",
-            )
-            old_passport_path = _replace_current_asset(
-                connection,
-                candidate_profile_id=candidate_profile_id,
-                asset_id=passport_asset_id,
-                asset_type="passport_photo",
-            )
+            if passport_asset_id and passport_bytes is not None:
+                passport_path = _current_storage_path(connection, passport_asset_id)
+                passport_content_type = _content_type_for_asset(connection, passport_asset_id)
+                upload_file(
+                    path=passport_path,
+                    content=passport_bytes,
+                    content_type=passport_content_type,
+                )
+                old_passport_path = _replace_current_asset(
+                    connection,
+                    candidate_profile_id=candidate_profile_id,
+                    asset_id=passport_asset_id,
+                    asset_type="passport_photo",
+                )
             old_storage_paths = [
                 path for path in [old_cv_path, old_passport_path] if path
             ]
@@ -617,36 +645,37 @@ def process_profile_submission(
                 connection,
                 candidate_profile_id,
                 upload_status="uploaded",
-                cv_processing_status="extracting",
+                cv_processing_status="extracting" if cv_asset_id else "completed",
             )
 
-            cv_text = extract_pdf_text(cv_bytes)
-            stored_chunks = _store_chunks(
-                connection,
-                candidate_profile_id=candidate_profile_id,
-                cv_asset_id=cv_asset_id,
-                cv_text=cv_text,
-            )
-            _mark_profile_status(
-                connection,
-                candidate_profile_id,
-                upload_status="uploaded",
-                cv_processing_status="chunked",
-            )
-            _mark_profile_status(
-                connection,
-                candidate_profile_id,
-                upload_status="uploaded",
-                cv_processing_status="embedding",
-            )
-            embedding_model = get_settings().embedding_model
-            if not embedding_model:
-                raise RuntimeError("EMBEDDING_MODEL is not configured.")
-            _store_embeddings(
-                connection,
-                stored_chunks=stored_chunks,
-                embedding_model=embedding_model,
-            )
+            if cv_asset_id and cv_bytes is not None:
+                cv_text = extract_pdf_text(cv_bytes)
+                stored_chunks = _store_chunks(
+                    connection,
+                    candidate_profile_id=candidate_profile_id,
+                    cv_asset_id=cv_asset_id,
+                    cv_text=cv_text,
+                )
+                _mark_profile_status(
+                    connection,
+                    candidate_profile_id,
+                    upload_status="uploaded",
+                    cv_processing_status="chunked",
+                )
+                _mark_profile_status(
+                    connection,
+                    candidate_profile_id,
+                    upload_status="uploaded",
+                    cv_processing_status="embedding",
+                )
+                embedding_model = get_settings().embedding_model
+                if not embedding_model:
+                    raise RuntimeError("EMBEDDING_MODEL is not configured.")
+                _store_embeddings(
+                    connection,
+                    stored_chunks=stored_chunks,
+                    embedding_model=embedding_model,
+                )
             _mark_profile_status(
                 connection,
                 candidate_profile_id,
@@ -666,24 +695,53 @@ def process_profile_submission(
             )
             now = _now()
             with retry_connection.cursor() as cursor:
-                cursor.execute(
-                    """
-                    update profile_assets
-                    set upload_status = 'failed', updated_at = %s
-                    where id = %s
-                    """,
-                    (now, cv_asset_id),
-                )
-                cursor.execute(
-                    """
-                    update profile_assets
-                    set upload_status = 'failed', updated_at = %s
-                    where id = %s
-                    """,
-                    (now, passport_asset_id),
-                )
+                if cv_asset_id:
+                    cursor.execute(
+                        """
+                        update profile_assets
+                        set upload_status = 'failed', updated_at = %s
+                        where id = %s
+                        """,
+                        (now, cv_asset_id),
+                    )
+                if passport_asset_id:
+                    cursor.execute(
+                        """
+                        update profile_assets
+                        set upload_status = 'failed', updated_at = %s
+                        where id = %s
+                        """,
+                        (now, passport_asset_id),
+                    )
             retry_connection.commit()
         raise
+
+
+def _editable_profile_query(where_clause: str) -> str:
+    return f"""
+        select
+          cp.first_name,
+          cp.second_name,
+          cp.email,
+          cp.github_url,
+          cp.linkedin_url,
+          cp.other_url,
+          cp.persona,
+          cp.public_profile_id,
+          cv.original_filename as cv_file_name,
+          passport.original_filename as passport_file_name
+        from candidate_profiles cp
+        left join profile_assets cv
+          on cv.candidate_profile_id = cp.id
+         and cv.asset_type = 'cv'
+         and cv.is_current = true
+        left join profile_assets passport
+          on passport.candidate_profile_id = cp.id
+         and passport.asset_type = 'passport_photo'
+         and passport.is_current = true
+        where {where_clause}
+        limit 1
+    """
 
 
 def get_public_profile(public_profile_id: str) -> dict[str, object] | None:
@@ -751,21 +809,7 @@ def get_editable_profile_for_user(
     with get_connection(autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                """
-                select
-                  first_name,
-                  second_name,
-                  email,
-                  github_url,
-                  linkedin_url,
-                  other_url,
-                  persona,
-                  public_profile_id
-                from candidate_profiles
-                where public_profile_id = %s
-                  and user_id = %s
-                limit 1
-                """,
+                _editable_profile_query("cp.public_profile_id = %s and cp.user_id = %s"),
                 (public_profile_id, user_id),
             )
             row = cursor.fetchone()
@@ -782,6 +826,35 @@ def get_editable_profile_for_user(
         "otherUrl": row["other_url"],
         "persona": row["persona"],
         "publicProfileId": row["public_profile_id"],
+        "cvFileName": row["cv_file_name"],
+        "passportFileName": row["passport_file_name"],
+    }
+
+
+def get_current_editable_profile_for_user(*, user_id: str) -> dict[str, object] | None:
+    """Return the current user's editable profile if one exists."""
+
+    ensure_schema()
+
+    with get_connection(autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(_editable_profile_query("cp.user_id = %s"), (user_id,))
+            row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "firstName": row["first_name"],
+        "secondName": row["second_name"],
+        "email": row["email"],
+        "githubUrl": row["github_url"],
+        "linkedinUrl": row["linkedin_url"],
+        "otherUrl": row["other_url"],
+        "persona": row["persona"],
+        "publicProfileId": row["public_profile_id"],
+        "cvFileName": row["cv_file_name"],
+        "passportFileName": row["passport_file_name"],
     }
 
 
@@ -802,16 +875,16 @@ def frontend_public_link(
 def validate_upload_payload(
     *,
     cv_bytes: bytes,
-    cv_content_type: str,
-    cv_filename: str,
+    cv_content_type: str | None,
+    cv_filename: str | None,
     email: str,
     first_name: str,
     github_url: str | None,
     linkedin_url: str | None,
     other_url: str | None,
     passport_bytes: bytes,
-    passport_content_type: str,
-    passport_filename: str,
+    passport_content_type: str | None,
+    passport_filename: str | None,
     persona: str,
     second_name: str,
     user: AuthenticatedUser,
@@ -826,24 +899,18 @@ def validate_upload_payload(
     if not persona.strip():
         raise ValueError("Persona is required.")
 
-    if not cv_bytes:
-        raise ValueError("A CV PDF is required.")
+    if cv_bytes:
+        if cv_content_type != "application/pdf":
+            raise ValueError("CV must be a PDF file.")
+        if len(cv_bytes) > settings.max_upload_bytes:
+            raise ValueError("CV exceeds the maximum upload size.")
 
-    if cv_content_type != "application/pdf":
-        raise ValueError("CV must be a PDF file.")
-
-    if len(cv_bytes) > settings.max_upload_bytes:
-        raise ValueError("CV exceeds the maximum upload size.")
-
-    if not passport_bytes:
-        raise ValueError("A passport photo is required.")
-
-    allowed_passport_types = {"image/jpeg", "image/png", "image/webp"}
-    if passport_content_type not in allowed_passport_types:
-        raise ValueError("Passport photo must be JPEG, PNG, or WebP.")
-
-    if len(passport_bytes) > settings.max_upload_bytes:
-        raise ValueError("Passport photo exceeds the maximum upload size.")
+    if passport_bytes:
+        allowed_passport_types = {"image/jpeg", "image/png", "image/webp"}
+        if passport_content_type not in allowed_passport_types:
+            raise ValueError("Passport photo must be JPEG, PNG, or WebP.")
+        if len(passport_bytes) > settings.max_upload_bytes:
+            raise ValueError("Passport photo exceeds the maximum upload size.")
 
     return UploadedPayload(
         user_id=user.id,
@@ -855,9 +922,9 @@ def validate_upload_payload(
         other_url=_normalize_optional(other_url),
         persona=persona.strip(),
         cv_content_type=cv_content_type,
-        cv_filename=os.path.basename(cv_filename),
-        cv_bytes=cv_bytes,
+        cv_filename=os.path.basename(cv_filename) if cv_filename else None,
+        cv_bytes=cv_bytes or None,
         passport_content_type=passport_content_type,
-        passport_filename=os.path.basename(passport_filename),
-        passport_bytes=passport_bytes,
+        passport_filename=os.path.basename(passport_filename) if passport_filename else None,
+        passport_bytes=passport_bytes or None,
     )
