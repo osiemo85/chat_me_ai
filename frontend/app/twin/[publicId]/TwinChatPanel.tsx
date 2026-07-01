@@ -111,11 +111,10 @@ export function TwinChatPanel({
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
       <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-        Chat with {candidateName}
+        Chat with me
       </p>
       <p className="mt-4 text-base leading-7 text-white/72">
-        You are chatting with {candidateName}&apos;s digital twin. Introduce yourself if
-        you want it to remember your name later in the conversation.
+        Here are quick questions you can start with. Just click and I will answer.
       </p>
 
       <div className="mt-5 flex flex-wrap gap-3">
@@ -125,7 +124,7 @@ export function TwinChatPanel({
             type="button"
             disabled={isLoading}
             onClick={() => void submitQuestion(question)}
-            className="rounded-full border border-white/12 bg-black/18 px-4 py-2 text-sm text-white/84 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+            className="cursor-pointer rounded-full border border-white/12 bg-black/18 px-4 py-2 text-sm text-white/84 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {question}
           </button>
@@ -192,11 +191,7 @@ export function TwinChatPanel({
               </div>
             </div>
           ))
-        ) : (
-          <div className="rounded-[1.5rem] border border-dashed border-white/12 bg-black/12 p-5 text-sm leading-7 text-white/52">
-            Start the conversation. Example: &quot;Hi, I am Alber. Tell me about your strongest skills.&quot;
-          </div>
-        )}
+        ) : null}
       </div>
 
       {error ? (
