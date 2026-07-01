@@ -12,6 +12,7 @@ from ...config import get_settings
 from ...dependencies import require_authenticated_user
 from ...schemas.auth import (
     AuthSessionResponse,
+    AuthStatusResponse,
     AuthUserResponse,
     GoogleExchangeRequest,
     LoginRequest,
@@ -24,6 +25,7 @@ from ...services.auth_service import (
     authenticate_user,
     authenticate_google_user,
     delete_session,
+    get_authenticated_user,
     register_user,
 )
 
@@ -244,6 +246,23 @@ def read_current_user(
     """Return the current authenticated user."""
 
     return AuthSessionResponse(user=_auth_user_response(current_user))
+
+
+@router.get("/status", response_model=AuthStatusResponse)
+def read_auth_status(request: Request) -> AuthStatusResponse:
+    """Return whether the current request has a valid authenticated session."""
+
+    settings = get_settings()
+    session_token = request.cookies.get(settings.auth_session_cookie_name)
+
+    if not session_token:
+        return AuthStatusResponse(authenticated=False)
+
+    user = get_authenticated_user(session_token)
+    if not user:
+        return AuthStatusResponse(authenticated=False)
+
+    return AuthStatusResponse(authenticated=True, user=_auth_user_response(user))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

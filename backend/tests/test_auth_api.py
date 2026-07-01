@@ -94,3 +94,29 @@ def test_google_exchange_sets_cookie(monkeypatch) -> None:
     payload = AuthSessionResponse.model_validate(response.json())
     assert payload.user.email == "ada@example.com"
     assert "chat_me_ai_session=" in response.headers["set-cookie"]
+
+
+def test_auth_status_returns_false_without_session(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.ensure_auth_schema", lambda: None)
+    monkeypatch.setattr("app.main.ensure_schema", lambda: None)
+
+    client = TestClient(create_app())
+    response = client.get("/api/v1/auth/status")
+
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": False, "user": None}
+
+
+def test_auth_status_returns_user_with_valid_session(monkeypatch) -> None:
+    monkeypatch.setattr("app.api.v1.auth.get_authenticated_user", lambda token: _session().user)
+    monkeypatch.setattr("app.main.ensure_auth_schema", lambda: None)
+    monkeypatch.setattr("app.main.ensure_schema", lambda: None)
+
+    client = TestClient(create_app())
+    client.cookies.set("chat_me_ai_session", "session-token")
+    response = client.get("/api/v1/auth/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["authenticated"] is True
+    assert payload["user"]["email"] == "ada@example.com"

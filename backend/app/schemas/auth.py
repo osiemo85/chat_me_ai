@@ -40,3 +40,10 @@ class AuthSessionResponse(BaseModel):
     """Authenticated session response."""
 
     user: AuthUserResponse
+
+
+class AuthStatusResponse(BaseModel):
+    """Authentication status for session-aware but public frontend checks."""
+
+    authenticated: bool
+    user: AuthUserResponse | None = None

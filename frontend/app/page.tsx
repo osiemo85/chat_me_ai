@@ -85,7 +85,7 @@ export default function Home() {
 
     async function loadAuthState() {
       try {
-        const response = await apiFetch("/api/v1/auth/me", {
+        const response = await apiFetch("/api/v1/auth/status", {
           cache: "no-store",
         });
 
@@ -93,7 +93,13 @@ export default function Home() {
           return;
         }
 
-        setIsAuthenticated(response.ok);
+        if (!response.ok) {
+          setIsAuthenticated(false);
+          return;
+        }
+
+        const payload = (await response.json()) as { authenticated?: boolean };
+        setIsAuthenticated(payload.authenticated === true);
       } catch {
         if (!cancelled) {
           setIsAuthenticated(false);
