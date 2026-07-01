@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, KeyboardEvent, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -95,6 +95,17 @@ export function TwinChatPanel({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await submitQuestion(message);
+  }
+
+  async function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+    if (!isLoading) {
+      await submitQuestion(message);
+    }
   }
 
   return (
@@ -194,21 +205,28 @@ export function TwinChatPanel({
         </p>
       ) : null}
 
-      <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-        <textarea
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder={`Ask ${candidateName} a professional question`}
-          className="min-h-32 w-full rounded-[1.5rem] border border-white/10 bg-black/18 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-sky-300"
-        />
+      <form className="mt-5" onSubmit={handleSubmit}>
+        <div className="relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-black/18 transition focus-within:border-sky-300">
+          <textarea
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={(event) => void handleKeyDown(event)}
+            placeholder={`Ask ${candidateName} a professional question`}
+            className="min-h-32 w-full resize-none bg-transparent px-4 pb-16 pt-4 pr-28 text-sm text-white outline-none placeholder:text-white/35"
+          />
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-6 font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200"
-        >
-          {isLoading ? "Answering..." : "Ask Question"}
-        </button>
+          <div className="pointer-events-none absolute inset-x-4 bottom-3 flex items-center gap-3 text-xs text-white/40">
+            <span>Enter to send</span>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="absolute bottom-3 right-3 inline-flex min-h-11 items-center justify-center rounded-full bg-sky-400 px-5 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200"
+          >
+            {isLoading ? "..." : "Send"}
+          </button>
+        </div>
       </form>
     </section>
   );
