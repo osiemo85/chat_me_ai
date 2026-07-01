@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getApiBaseUrl } from "@/lib/api";
@@ -26,19 +27,51 @@ function extractPublicProfileIdFromSlug(slug: string): string {
   return match?.[1] ?? slug;
 }
 
-export default async function TwinPage({ params }: TwinPageProps) {
-  const { publicId: slug } = await params;
-  const publicId = extractPublicProfileIdFromSlug(slug);
+async function getPublicProfile(publicId: string): Promise<PublicProfile | null> {
   const response = await fetch(
     `${getApiBaseUrl()}/api/v1/profiles/public/${publicId}`,
     { cache: "no-store" },
   );
 
   if (!response.ok) {
+    return null;
+  }
+
+  return (await response.json()) as PublicProfile;
+}
+
+export async function generateMetadata({ params }: TwinPageProps): Promise<Metadata> {
+  const { publicId: slug } = await params;
+  const publicId = extractPublicProfileIdFromSlug(slug);
+  const profile = await getPublicProfile(publicId);
+
+  if (!profile) {
+    return {
+      title: "Chat Me AI",
+    };
+  }
+
+  const fullName = `${profile.firstName} ${profile.secondName}`;
+
+  return {
+    title: `Chat with Me - ${fullName}`,
+    icons: {
+      icon: [{ url: "/logo.ico" }],
+      shortcut: [{ url: "/logo.ico" }],
+      apple: [{ url: "/logo.ico" }],
+    },
+  };
+}
+
+export default async function TwinPage({ params }: TwinPageProps) {
+  const { publicId: slug } = await params;
+  const publicId = extractPublicProfileIdFromSlug(slug);
+  const profile = await getPublicProfile(publicId);
+
+  if (!profile) {
     notFound();
   }
 
-  const profile = (await response.json()) as PublicProfile;
   const fullName = `${profile.firstName} ${profile.secondName}`;
   const socialLinks = [
     profile.linkedinUrl
