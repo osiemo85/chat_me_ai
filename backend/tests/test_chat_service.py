@@ -113,8 +113,8 @@ def test_answer_public_question_passes_history_to_general_chat(monkeypatch) -> N
     monkeypatch.setattr(chat_service, "get_candidate_context", lambda _: candidate)
     monkeypatch.setattr(
         chat_service,
-        "_stream_chat",
-        lambda messages: captured.setdefault("messages", messages) or "Hello there",
+        "_invoke_chat",
+        lambda messages: (captured.setdefault("messages", messages) and "Hello there", None),
     )
 
     result = chat_service.answer_public_question(
@@ -160,9 +160,15 @@ def test_answer_with_rag_agent_passes_string_system_prompt(monkeypatch) -> None:
 
     monkeypatch.setattr(chat_service, "create_agent", fake_create_agent)
 
-    result = chat_service._answer_with_rag_agent(candidate, "What is your experience?", [], chunks)
+    result, usage = chat_service._answer_with_rag_agent(
+        candidate,
+        "What is your experience?",
+        [],
+        chunks,
+    )
 
     assert result == "Grounded answer"
+    assert usage is None
     assert isinstance(captured["system_prompt"], str)
 
 
@@ -193,7 +199,7 @@ def test_answer_with_rag_agent_passes_history_messages(monkeypatch) -> None:
     )
 
     history = [PublicChatMessage(role="user", content="My name is Alber.")]
-    result = chat_service._answer_with_rag_agent(
+    result, usage = chat_service._answer_with_rag_agent(
         candidate,
         "What is your experience?",
         history,
@@ -201,9 +207,36 @@ def test_answer_with_rag_agent_passes_history_messages(monkeypatch) -> None:
     )
 
     assert result == "Grounded answer"
+    assert usage is None
     assert captured["payload"] == {
         "messages": [
             {"role": "user", "content": "My name is Alber."},
             {"role": "user", "content": "What is your experience?"},
         ]
     }
+
+
+def test_answer_public_question_with_usage_returns_usage_for_general_chat(monkeypatch) -> None:
+    candidate = type(
+        "Candidate",
+        (),
+        {
+            "candidate_profile_id": "candidate-1",
+            "full_name": "Maina Osiemo",
+            "persona": "Professional",
+            "public_profile_id": "twin_123",
+        },
+    )()
+
+    monkeypatch.setattr(chat_service, "get_candidate_context", lambda _: candidate)
+    monkeypatch.setattr(
+        chat_service,
+        "_invoke_chat",
+        lambda messages: ("Hello there", chat_service.ChatUsage(total_tokens=42)),
+    )
+
+    result, usage = chat_service.answer_public_question_with_usage("twin_123", "Hello")
+
+    assert result == {"answer": "Hello there", "usedContext": False, "sources": []}
+    assert usage is not None
+    assert usage.total_tokens == 42

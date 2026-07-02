@@ -26,3 +26,29 @@ def require_authenticated_user(request: Request) -> AuthenticatedUser:
         )
 
     return user
+
+
+def require_admin_user(request: Request) -> AuthenticatedUser:
+    """Return the current authenticated user if they are an allowed admin."""
+
+    user = require_authenticated_user(request)
+    settings = get_settings()
+    allowed_emails = {
+        value.strip().lower()
+        for value in settings.admin_emails.split(",")
+        if value.strip()
+    }
+
+    if not allowed_emails:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Dashboard admin access is not configured.",
+        )
+
+    if user.email.strip().lower() not in allowed_emails:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access is required.",
+        )
+
+    return user

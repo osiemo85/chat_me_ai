@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     auth_password_iterations: int = 600000
     google_client_id: str | None = None
     google_client_secret: str | None = None
+    admin_emails: str = ""
     max_upload_bytes: int = 10 * 1024 * 1024
     chunk_overlap: int = 200
     chunk_size: int = 1200

@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 import re
+from uuid import uuid4
 
 from langchain.agents import create_agent
 from langchain_openrouter import ChatOpenRouter
 from langchain_core.tools import tool
 
+from ..db import get_connection
 from ..config import get_settings
 from ..schemas.chat import PublicChatMessage
 from .retrieval_service import (
@@ -29,6 +33,17 @@ USER_IDENTITY_PATTERN = re.compile(
 )
 
 NO_CV_ANSWER = "I do not have an answer from the CV context."
+
+
+@dataclass(slots=True)
+class ChatUsage:
+    """Token and cost metadata for a single chat completion."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    total_cost: Decimal = Decimal("0")
+    model_name: str | None = None
 
 
 @lru_cache(maxsize=1)
@@ -59,6 +74,22 @@ def answer_public_question(
     *,
     history: list[PublicChatMessage] | None = None,
 ) -> dict[str, object]:
+    """Answer a public twin question and return the API payload."""
+
+    payload, _ = answer_public_question_with_usage(
+        public_profile_id,
+        message,
+        history=history,
+    )
+    return payload
+
+
+def answer_public_question_with_usage(
+    public_profile_id: str,
+    message: str,
+    *,
+    history: list[PublicChatMessage] | None = None,
+) -> tuple[dict[str, object], ChatUsage | None]:
     """Answer a public twin question using greetings or retrieved CV context."""
 
     normalized_message = message.strip()
@@ -73,11 +104,11 @@ def answer_public_question(
 
     if is_user_identity_question(normalized_message):
         answer = _respond_to_user_identity_question(candidate, safe_history)
-        return {"answer": answer, "usedContext": False, "sources": []}
+        return {"answer": answer, "usedContext": False, "sources": []}, None
 
     if is_general_message(normalized_message):
-        answer = _respond_to_general_message(candidate, normalized_message, safe_history)
-        return {"answer": answer, "usedContext": False, "sources": []}
+        answer, usage = _respond_to_general_message(candidate, normalized_message, safe_history)
+        return {"answer": answer, "usedContext": False, "sources": []}, usage
 
     chunks = get_current_chunks(candidate.candidate_profile_id)
     if not chunks:
@@ -85,16 +116,16 @@ def answer_public_question(
             "answer": NO_CV_ANSWER,
             "usedContext": False,
             "sources": [],
-        }
+        }, None
 
     ranked_chunks = rank_chunks(normalized_message, chunks)
-    answer = _answer_with_rag_agent(candidate, normalized_message, safe_history, chunks)
+    answer, usage = _answer_with_rag_agent(candidate, normalized_message, safe_history, chunks)
 
     return {
         "answer": answer,
         "usedContext": bool(ranked_chunks),
         "sources": [chunk.chunk_index for chunk in ranked_chunks],
-    }
+    }, usage
 
 
 def is_general_message(message: str) -> bool:
@@ -124,7 +155,7 @@ def _respond_to_general_message(
     candidate: CandidateContext,
     message: str,
     history: list[PublicChatMessage],
-) -> str:
+) -> tuple[str, ChatUsage | None]:
     system_message = (
         f"You are the public digital twin for {candidate.full_name}. You are chatting with a potential employer or recruiter, and always you must be helpful and informative and courteous. You represent {candidate.full_name} and answer questions on their behalf using first person. "
         f"Use the selected persona '{candidate.persona}' only as tone. "
@@ -137,7 +168,7 @@ def _respond_to_general_message(
         "Avoid asking recruiters insensitive personal questions unrelated to helping them evaluate the candidate."
     )
 
-    return _stream_chat(
+    return _invoke_chat(
         _build_chat_messages(system_message, history, message)
     )
 
@@ -166,7 +197,7 @@ def _answer_with_rag_agent(
     message: str,
     history: list[PublicChatMessage],
     chunks: list,
-) -> str:
+) -> tuple[str, ChatUsage | None]:
     @tool(response_format="content_and_artifact")
     def retrieve_context(query: str) -> tuple[str, list[dict[str, object]]]:
         """Retrieve CV context for the current public digital twin."""
@@ -204,12 +235,13 @@ def _answer_with_rag_agent(
     messages = result.get("messages", [])
 
     if not messages:
-        return NO_CV_ANSWER
+        return NO_CV_ANSWER, None
 
-    output = messages[-1].content
+    final_message = messages[-1]
+    output = final_message.content
 
     if isinstance(output, str):
-        return output.strip() or NO_CV_ANSWER
+        return output.strip() or NO_CV_ANSWER, _extract_usage(final_message)
 
     if isinstance(output, list):
         text = "".join(
@@ -217,19 +249,14 @@ def _answer_with_rag_agent(
             for part in output
             if isinstance(part, dict)
         ).strip()
-        return text or NO_CV_ANSWER
+        return text or NO_CV_ANSWER, _extract_usage(final_message)
 
-    return NO_CV_ANSWER
+    return NO_CV_ANSWER, _extract_usage(final_message)
 
 
-def _stream_chat(messages: list[dict[str, str]]) -> str:
-    chunks: list[str] = []
-
-    for chunk in get_chat_client().stream(messages):
-        if chunk.content:
-            chunks.append(str(chunk.content))
-
-    return "".join(chunks).strip()
+def _invoke_chat(messages: list[dict[str, str]]) -> tuple[str, ChatUsage | None]:
+    response = get_chat_client().invoke(messages)
+    return str(response.content).strip(), _extract_usage(response)
 
 
 def _build_chat_messages(
@@ -258,6 +285,108 @@ def _remember_user_name(history: list[PublicChatMessage]) -> str | None:
         name = _extract_name_from_user_message(item.content)
         if name:
             return name
+
+    return None
+
+
+def _extract_usage(message: object) -> ChatUsage | None:
+    """Extract token and cost metadata from a LangChain chat response."""
+
+    usage_metadata = getattr(message, "usage_metadata", None)
+    response_metadata = getattr(message, "response_metadata", None)
+
+    if not isinstance(usage_metadata, dict) and not isinstance(response_metadata, dict):
+        return None
+
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+
+    if isinstance(usage_metadata, dict):
+        prompt_tokens = int(usage_metadata.get("input_tokens") or 0)
+        completion_tokens = int(usage_metadata.get("output_tokens") or 0)
+        total_tokens = int(
+            usage_metadata.get("total_tokens")
+            or (prompt_tokens + completion_tokens)
+        )
+
+    total_cost = Decimal("0")
+    model_name = None
+
+    if isinstance(response_metadata, dict):
+        model_name_value = response_metadata.get("model_name")
+        if isinstance(model_name_value, str) and model_name_value.strip():
+            model_name = model_name_value.strip()
+
+        cost_value = response_metadata.get("cost")
+        if cost_value is not None:
+            try:
+                total_cost = Decimal(str(cost_value))
+            except (InvalidOperation, ValueError):
+                total_cost = Decimal("0")
+
+    if model_name is None:
+        model_name = get_settings().chat_model_name
+
+    return ChatUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        total_cost=total_cost,
+        model_name=model_name,
+    )
+
+
+def record_chat_usage_event(
+    *,
+    candidate: CandidateContext,
+    usage: ChatUsage | None,
+    used_context: bool,
+    source_count: int,
+) -> None:
+    """Persist a billing-oriented usage event for a public twin request."""
+
+    usage = usage or ChatUsage(model_name=get_settings().chat_model_name)
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                insert into chat_usage_events (
+                  id,
+                  candidate_profile_id,
+                  owner_user_id,
+                  owner_email,
+                  public_profile_id,
+                  request_count,
+                  prompt_tokens,
+                  completion_tokens,
+                  total_tokens,
+                  total_cost,
+                  model_name,
+                  used_context,
+                  source_count,
+                  created_at
+                )
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                """,
+                (
+                    str(uuid4()),
+                    candidate.candidate_profile_id,
+                    candidate.owner_user_id,
+                    candidate.owner_email,
+                    candidate.public_profile_id,
+                    1,
+                    usage.prompt_tokens,
+                    usage.completion_tokens,
+                    usage.total_tokens,
+                    usage.total_cost,
+                    usage.model_name,
+                    used_context,
+                    source_count,
+                ),
+            )
+        connection.commit()
 
     return None
 

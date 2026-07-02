@@ -78,6 +78,29 @@ create table if not exists chunks (
 create index if not exists chunks_profile_lookup_idx
   on chunks (candidate_profile_id, profile_asset_id, chunk_index);
 
+create table if not exists chat_usage_events (
+  id uuid primary key,
+  candidate_profile_id uuid not null references candidate_profiles(id) on delete cascade,
+  owner_user_id uuid references auth_users(id) on delete set null,
+  owner_email varchar(255) not null,
+  public_profile_id varchar(120) not null,
+  request_count integer not null default 1,
+  prompt_tokens integer not null default 0,
+  completion_tokens integer not null default 0,
+  total_tokens integer not null default 0,
+  total_cost numeric(12, 8) not null default 0,
+  model_name varchar(255),
+  used_context boolean not null default false,
+  source_count integer not null default 0,
+  created_at timestamptz not null
+);
+
+create index if not exists chat_usage_events_candidate_lookup_idx
+  on chat_usage_events (candidate_profile_id, created_at desc);
+
+create index if not exists chat_usage_events_owner_lookup_idx
+  on chat_usage_events (owner_user_id, created_at desc);
+
 alter table candidate_profiles
   add column if not exists user_id uuid references auth_users(id) on delete cascade;
 

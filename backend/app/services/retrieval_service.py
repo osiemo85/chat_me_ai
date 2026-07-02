@@ -16,6 +16,8 @@ class CandidateContext:
 
     candidate_profile_id: str
     full_name: str
+    owner_email: str
+    owner_user_id: str | None
     persona: str
     public_profile_id: str
 
@@ -47,7 +49,7 @@ def get_candidate_context(public_profile_id: str) -> CandidateContext | None:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                select id, first_name, second_name, persona, public_profile_id
+                select id, user_id, email, first_name, second_name, persona, public_profile_id
                 from candidate_profiles
                 where public_profile_id = %s
                 limit 1
@@ -62,6 +64,8 @@ def get_candidate_context(public_profile_id: str) -> CandidateContext | None:
     return CandidateContext(
         candidate_profile_id=str(row["id"]),
         full_name=f"{row['first_name']} {row['second_name']}",
+        owner_email=str(row["email"]),
+        owner_user_id=str(row["user_id"]) if row["user_id"] else None,
         persona=str(row["persona"]),
         public_profile_id=str(row["public_profile_id"]),
     )
