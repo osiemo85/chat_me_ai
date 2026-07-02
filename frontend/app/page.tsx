@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 
@@ -74,11 +74,13 @@ function HomeActions({
   );
 }
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const accessMessage = searchParams.get("message");
 
   useEffect(() => {
     let cancelled = false;
@@ -157,6 +159,12 @@ export default function Home() {
         <div className="flex flex-1 flex-col">
           <section className="flex min-h-[70vh] flex-1 items-center justify-center py-10 text-center">
             <div className="hero-message mx-auto flex max-w-5xl flex-col items-center rounded-[2.2rem] border border-cyan-300/20 bg-white/6 px-6 py-10 backdrop-blur-xl sm:px-10 lg:px-14 lg:py-14">
+              {accessMessage ? (
+                <div className="mb-6 w-full max-w-2xl rounded-[1rem] border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                  {accessMessage}
+                </div>
+              ) : null}
+
               <h1 className="text-5xl font-semibold leading-[0.96] tracking-[-0.06em] text-white sm:text-6xl lg:text-8xl">
                 Let employers chat and talk to you when you are away
               </h1>
@@ -285,5 +293,43 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <main className="relative isolate overflow-hidden bg-[var(--bg)] text-[var(--text)]">
+          <div className="pointer-events-none absolute inset-0 -z-10">
+            <div className="hero-grid absolute inset-0 opacity-50" />
+            <div className="hero-orb hero-orb-cyan" />
+            <div className="hero-orb hero-orb-amber" />
+            <div className="hero-orb hero-orb-rose" />
+          </div>
+
+          <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-8 sm:px-10 lg:px-12">
+            <header className="flex items-center justify-between rounded-full border border-white/10 bg-white/6 px-5 py-3 backdrop-blur">
+              <p className="text-xs font-medium uppercase tracking-[0.35em] text-[var(--accent)]">
+                Chat Me AI
+              </p>
+              <div className="h-10 w-40 rounded-full border border-white/10 bg-white/6" />
+            </header>
+
+            <div className="flex flex-1 flex-col">
+              <section className="flex min-h-[70vh] flex-1 items-center justify-center py-10 text-center">
+                <div className="hero-message mx-auto flex max-w-5xl flex-col items-center rounded-[2.2rem] border border-cyan-300/20 bg-white/6 px-6 py-10 backdrop-blur-xl sm:px-10 lg:px-14 lg:py-14">
+                  <h1 className="text-5xl font-semibold leading-[0.96] tracking-[-0.06em] text-white sm:text-6xl lg:text-8xl">
+                    Let employers chat and talk to you when you are away
+                  </h1>
+                </div>
+              </section>
+            </div>
+          </section>
+        </main>
+      }
+    >
+      <HomeContent />
+    </Suspense>
   );
 }
