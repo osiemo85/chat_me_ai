@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AuthForm } from "@/components/auth/AuthForm";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { redirectIfAuthenticated } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Login | Chat Me AI",
@@ -21,6 +22,7 @@ function resolveAuthError(error?: string): string | null {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  await redirectIfAuthenticated();
   const params = await searchParams;
 
   return (
