@@ -50,9 +50,26 @@ class DashboardUsageRowResponse(BaseModel):
     lastRequestAt: datetime | None = None
 
 
+class DashboardSubscriptionRowResponse(BaseModel):
+    """Subscription and billing details per managed user."""
+
+    userId: str
+    email: str
+    publicProfileId: str | None = None
+    publicTwinUrl: str | None = None
+    status: str
+    planLabel: str
+    freePublicChatsUsed: int
+    freePublicChatsLimit: int
+    accessStartsAt: datetime | None = None
+    accessExpiresAt: datetime | None = None
+    updatedAt: datetime | None = None
+
+
 class AdminDashboardResponse(BaseModel):
     """Full admin dashboard payload."""
 
     summary: DashboardSummaryResponse
     users: list[DashboardUserRowResponse]
     usage: list[DashboardUsageRowResponse]
+    subscriptions: list[DashboardSubscriptionRowResponse]

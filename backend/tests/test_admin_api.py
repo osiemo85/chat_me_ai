@@ -48,6 +48,21 @@ def test_read_admin_dashboard_returns_payload(monkeypatch) -> None:
                     "lastRequestAt": "2026-07-02T11:00:00Z",
                 }
             ],
+            "subscriptions": [
+                {
+                    "userId": "user-1",
+                    "email": "ada@example.com",
+                    "publicProfileId": "twin_123",
+                    "publicTwinUrl": "http://localhost:3000/twin/ada-lovelace-twin_123",
+                    "status": "active",
+                    "planLabel": "KES 5 yearly",
+                    "freePublicChatsUsed": 1,
+                    "freePublicChatsLimit": 2,
+                    "accessStartsAt": "2026-07-01T10:00:00Z",
+                    "accessExpiresAt": "2027-07-01T10:00:00Z",
+                    "updatedAt": "2026-07-02T11:00:00Z",
+                }
+            ],
         },
     )
     monkeypatch.setattr("app.main.ensure_auth_schema", lambda: None)
@@ -63,3 +78,4 @@ def test_read_admin_dashboard_returns_payload(monkeypatch) -> None:
     assert payload["summary"]["totalTokens"] == 1200
     assert payload["users"][0]["email"] == "ada@example.com"
     assert payload["usage"][0]["publicProfileId"] == "twin_123"
+    assert payload["subscriptions"][0]["planLabel"] == "KES 5 yearly"

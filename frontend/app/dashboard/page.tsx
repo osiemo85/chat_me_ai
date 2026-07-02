@@ -45,11 +45,29 @@ type DashboardUsageRow = {
   lastRequestAt: string | null;
 };
 
+type DashboardSubscriptionRow = {
+  userId: string;
+  email: string;
+  publicProfileId: string | null;
+  publicTwinUrl: string | null;
+  status: string;
+  planLabel: string;
+  freePublicChatsUsed: number;
+  freePublicChatsLimit: number;
+  accessStartsAt: string | null;
+  accessExpiresAt: string | null;
+  updatedAt: string | null;
+};
+
 type DashboardPayload = {
   summary: DashboardSummary;
   users: DashboardUserRow[];
   usage: DashboardUsageRow[];
+  subscriptions: DashboardSubscriptionRow[];
 };
+
+type PageMode = "loading" | "admin";
+type DashboardSection = "overview" | "users" | "usage" | "subscriptions";
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
@@ -66,7 +84,7 @@ function formatCurrency(value: number): string {
 
 function formatDate(value: string | null): string {
   if (!value) {
-    return "Never";
+    return "Not available";
   }
 
   return new Intl.DateTimeFormat("en-US", {
@@ -75,61 +93,373 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
+function formatStatusLabel(value: string): string {
+  if (!value) {
+    return "Inactive";
+  }
+
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function AdminDashboard({
+  data,
+  activeSection,
+  onSectionChange,
+}: {
+  data: DashboardPayload;
+  activeSection: DashboardSection;
+  onSectionChange: (section: DashboardSection) => void;
+}) {
+  const navigationItems: Array<{
+    id: DashboardSection;
+    label: string;
+    description: string;
+  }> = [
+    { id: "overview", label: "Overview", description: "General statistics" },
+    { id: "users", label: "Users", description: "Accounts and twins" },
+    { id: "usage", label: "Usage", description: "Requests and tokens" },
+    { id: "subscriptions", label: "Subscriptions", description: "Plans and end dates" },
+  ];
+
+  return (
+    <section className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="rounded-[2rem] border border-white/10 bg-white/8 p-5 backdrop-blur-xl xl:sticky xl:top-10 xl:h-fit">
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+          Navigation
+        </p>
+        <nav className="mt-5 space-y-3">
+          {navigationItems.map((item) => {
+            const isActive = activeSection === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSectionChange(item.id)}
+                className={`flex w-full flex-col rounded-[1.4rem] border px-4 py-4 text-left transition ${
+                  isActive
+                    ? "border-cyan-200/50 bg-cyan-200/14 text-white"
+                    : "border-white/8 bg-slate-950/20 text-white/70 hover:border-white/16 hover:bg-white/6 hover:text-white"
+                }`}
+              >
+                <span className="text-base font-semibold">{item.label}</span>
+                <span className="mt-1 text-sm opacity-80">{item.description}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <div className="space-y-6">
+        {activeSection === "overview" ? (
+          <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+                Overview
+              </p>
+              <h2 className="text-2xl font-semibold text-white">General statistics</h2>
+              <p className="text-sm leading-7 text-white/70">
+                Total users, twins, requests, token usage, and current cost across the platform.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {[
+                { label: "Total users", value: formatNumber(data.summary.totalUsers) },
+                { label: "Total twins", value: formatNumber(data.summary.totalTwins) },
+                { label: "Requests sent", value: formatNumber(data.summary.totalRequests) },
+                { label: "Tokens so far", value: formatNumber(data.summary.totalTokens) },
+                { label: "Current cost", value: formatCurrency(data.summary.totalCost) },
+              ].map((item) => (
+                <article
+                  key={item.label}
+                  className="rounded-[1.75rem] border border-white/10 bg-slate-950/20 p-5"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100">
+                    {item.label}
+                  </p>
+                  <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
+                    {item.value}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {activeSection === "users" ? (
+          <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+                  Users
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Current accounts and twin details
+                </h2>
+              </div>
+              <p className="text-sm text-white/58">{formatNumber(data.users.length)} users loaded</p>
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-full text-left text-sm text-white/78">
+                <thead className="text-xs uppercase tracking-[0.2em] text-white/42">
+                  <tr>
+                    <th className="px-3 py-3">User</th>
+                    <th className="px-3 py-3">Email</th>
+                    <th className="px-3 py-3">Twin</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Tokens</th>
+                    <th className="px-3 py-3">Cost</th>
+                    <th className="px-3 py-3">Last activity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.users.map((row) => (
+                    <tr key={row.userId} className="border-t border-white/8 align-top">
+                      <td className="px-3 py-4">
+                        <div className="font-semibold text-white">
+                          {row.firstName} {row.lastName}
+                        </div>
+                        <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/42">
+                          {row.authProvider}
+                        </div>
+                      </td>
+                      <td className="px-3 py-4">{row.email}</td>
+                      <td className="px-3 py-4">
+                        {row.publicTwinUrl ? (
+                          <div className="space-y-2">
+                            <div className="font-medium text-white">{row.publicProfileId}</div>
+                            <a
+                              href={row.publicTwinUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sky-200 underline decoration-white/20 underline-offset-4"
+                            >
+                              Open public twin
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-white/42">No twin yet</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-4">
+                        <div>{row.uploadStatus ?? "No upload"}</div>
+                        <div className="mt-1 text-white/50">
+                          {row.cvProcessingStatus ?? "No processing"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-4">
+                        <div>{formatNumber(row.totalTokens)}</div>
+                        <div className="mt-1 text-white/50">
+                          {formatNumber(row.totalRequests)} requests
+                        </div>
+                      </td>
+                      <td className="px-3 py-4">{formatCurrency(row.totalCost)}</td>
+                      <td className="px-3 py-4">
+                        <div>{formatDate(row.lastActivityAt)}</div>
+                        <div className="mt-1 text-white/50">
+                          Joined {formatDate(row.createdAt)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
+        {activeSection === "usage" ? (
+          <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+                Usage
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">
+                Request totals by public twin
+              </h2>
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-full text-left text-sm text-white/78">
+                <thead className="text-xs uppercase tracking-[0.2em] text-white/42">
+                  <tr>
+                    <th className="px-3 py-3">User ID</th>
+                    <th className="px-3 py-3">Email</th>
+                    <th className="px-3 py-3">Public twin</th>
+                    <th className="px-3 py-3">Requests</th>
+                    <th className="px-3 py-3">Prompt</th>
+                    <th className="px-3 py-3">Completion</th>
+                    <th className="px-3 py-3">Total tokens</th>
+                    <th className="px-3 py-3">Cost</th>
+                    <th className="px-3 py-3">Last request</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.usage.map((row) => (
+                    <tr
+                      key={`${row.userId}-${row.publicProfileId}`}
+                      className="border-t border-white/8 align-top"
+                    >
+                      <td className="px-3 py-4 font-mono text-xs text-white/72">{row.userId}</td>
+                      <td className="px-3 py-4">{row.email}</td>
+                      <td className="px-3 py-4">
+                        <div className="font-medium text-white">{row.publicProfileId}</div>
+                        <a
+                          href={row.publicTwinUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 inline-block text-sky-200 underline decoration-white/20 underline-offset-4"
+                        >
+                          {row.publicTwinUrl}
+                        </a>
+                      </td>
+                      <td className="px-3 py-4">{formatNumber(row.requestsSent)}</td>
+                      <td className="px-3 py-4">{formatNumber(row.promptTokens)}</td>
+                      <td className="px-3 py-4">{formatNumber(row.completionTokens)}</td>
+                      <td className="px-3 py-4 font-semibold text-white">
+                        {formatNumber(row.totalTokens)}
+                      </td>
+                      <td className="px-3 py-4">{formatCurrency(row.totalCost)}</td>
+                      <td className="px-3 py-4">{formatDate(row.lastRequestAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
+        {activeSection === "subscriptions" ? (
+          <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+                  Subscriptions
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Billing status and plan details
+                </h2>
+              </div>
+              <p className="text-sm text-white/58">
+                {formatNumber(data.subscriptions.length)} users loaded
+              </p>
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-full text-left text-sm text-white/78">
+                <thead className="text-xs uppercase tracking-[0.2em] text-white/42">
+                  <tr>
+                    <th className="px-3 py-3">User</th>
+                    <th className="px-3 py-3">Twin</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Plan</th>
+                    <th className="px-3 py-3">Free usage</th>
+                    <th className="px-3 py-3">Start date</th>
+                    <th className="px-3 py-3">End date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.subscriptions.map((row) => (
+                    <tr
+                      key={`${row.userId}-${row.publicProfileId ?? "no-profile"}`}
+                      className="border-t border-white/8 align-top"
+                    >
+                      <td className="px-3 py-4">
+                        <div className="font-medium text-white">{row.email}</div>
+                        <div className="mt-1 font-mono text-xs text-white/50">{row.userId}</div>
+                      </td>
+                      <td className="px-3 py-4">
+                        {row.publicTwinUrl ? (
+                          <div className="space-y-2">
+                            <div className="font-medium text-white">{row.publicProfileId}</div>
+                            <a
+                              href={row.publicTwinUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sky-200 underline decoration-white/20 underline-offset-4"
+                            >
+                              Open public twin
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-white/42">No twin yet</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-4">
+                        <span className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white">
+                          {formatStatusLabel(row.status)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-4">{row.planLabel}</td>
+                      <td className="px-3 py-4">
+                        {formatNumber(row.freePublicChatsUsed)} / {formatNumber(row.freePublicChatsLimit)}
+                      </td>
+                      <td className="px-3 py-4">{formatDate(row.accessStartsAt)}</td>
+                      <td className="px-3 py-4">{formatDate(row.accessExpiresAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
-  const [data, setData] = useState<DashboardPayload | null>(null);
+  const [mode, setMode] = useState<PageMode>("loading");
+  const [adminData, setAdminData] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [activeSection, setActiveSection] = useState<DashboardSection>("overview");
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadDashboard() {
+    async function loadPage() {
       try {
-        const response = await apiFetch("/api/v1/admin/dashboard", {
+        const adminResponse = await apiFetch("/api/v1/admin/dashboard", {
           cache: "no-store",
         });
 
-        if (response.status === 401) {
+        if (adminResponse.status === 401) {
           router.replace("/login");
           return;
         }
 
-        if (response.status === 403) {
-          router.replace("/?message=This%20is%20an%20admin%20page.");
+        if (adminResponse.ok) {
+          const payload = (await adminResponse.json()) as DashboardPayload;
+          if (!cancelled) {
+            setAdminData(payload);
+            setMode("admin");
+          }
           return;
         }
 
-        const payload = (await response.json()) as DashboardPayload | { detail?: string };
-
-        if (!response.ok) {
-          throw new Error(
-            "detail" in payload && payload.detail
-              ? payload.detail
-              : "Unable to load the dashboard.",
-          );
+        if (adminResponse.status !== 403) {
+          const payload = (await adminResponse.json()) as { detail?: string };
+          throw new Error(payload.detail ?? "Unable to load the dashboard.");
         }
 
-        if (!cancelled) {
-          setData(payload as DashboardPayload);
-        }
+        router.replace("/upload");
+        return;
       } catch (loadError) {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Unable to load the dashboard.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
+          setError(loadError instanceof Error ? loadError.message : "Unable to load the dashboard.");
+          setMode("loading");
         }
       }
     }
 
-    void loadDashboard();
+    void loadPage();
 
     return () => {
       cancelled = true;
@@ -157,10 +487,11 @@ export default function DashboardPage() {
                 Admin Dashboard
               </p>
               <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
-                Usage and payment management
+                Admin dashboard
               </h1>
               <p className="mt-3 max-w-3xl text-base leading-8 text-white/74">
-                Review token usage, current cost, user records, and each public twin link in one place.
+                Start on the overview for general statistics, then use the left sidebar for users,
+                usage, and subscription details.
               </p>
             </div>
 
@@ -183,7 +514,7 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {isLoading ? (
+        {mode === "loading" ? (
           <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 text-sm text-white/72 backdrop-blur-xl">
             Loading dashboard...
           </section>
@@ -194,175 +525,12 @@ export default function DashboardPage() {
             {error}
           </section>
         ) : null}
-
-        {data ? (
-          <>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              {[
-                { label: "Total users", value: formatNumber(data.summary.totalUsers) },
-                { label: "Total twins", value: formatNumber(data.summary.totalTwins) },
-                { label: "Requests sent", value: formatNumber(data.summary.totalRequests) },
-                { label: "Tokens so far", value: formatNumber(data.summary.totalTokens) },
-                { label: "Current cost", value: formatCurrency(data.summary.totalCost) },
-              ].map((item) => (
-                <article
-                  key={item.label}
-                  className="rounded-[1.75rem] border border-white/10 bg-white/8 p-5 backdrop-blur-xl"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100">
-                    {item.label}
-                  </p>
-                  <p className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
-                    {item.value}
-                  </p>
-                </article>
-              ))}
-            </section>
-
-            <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-                    Users
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
-                    Current accounts and twin details
-                  </h2>
-                </div>
-                <p className="text-sm text-white/58">
-                  {formatNumber(data.users.length)} users loaded
-                </p>
-              </div>
-
-              <div className="mt-5 overflow-x-auto">
-                <table className="min-w-full text-left text-sm text-white/78">
-                  <thead className="text-xs uppercase tracking-[0.2em] text-white/42">
-                    <tr>
-                      <th className="px-3 py-3">User</th>
-                      <th className="px-3 py-3">Email</th>
-                      <th className="px-3 py-3">Twin</th>
-                      <th className="px-3 py-3">Status</th>
-                      <th className="px-3 py-3">Tokens</th>
-                      <th className="px-3 py-3">Cost</th>
-                      <th className="px-3 py-3">Last activity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.users.map((row) => (
-                      <tr key={row.userId} className="border-t border-white/8 align-top">
-                        <td className="px-3 py-4">
-                          <div className="font-semibold text-white">
-                            {row.firstName} {row.lastName}
-                          </div>
-                          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/42">
-                            {row.authProvider}
-                          </div>
-                        </td>
-                        <td className="px-3 py-4">{row.email}</td>
-                        <td className="px-3 py-4">
-                          {row.publicTwinUrl ? (
-                            <div className="space-y-2">
-                              <div className="font-medium text-white">{row.publicProfileId}</div>
-                              <a
-                                href={row.publicTwinUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-sky-200 underline decoration-white/20 underline-offset-4"
-                              >
-                                Open public twin
-                              </a>
-                            </div>
-                          ) : (
-                            <span className="text-white/42">No twin yet</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-4">
-                          <div>{row.uploadStatus ?? "No upload"}</div>
-                          <div className="mt-1 text-white/50">
-                            {row.cvProcessingStatus ?? "No processing"}
-                          </div>
-                        </td>
-                        <td className="px-3 py-4">
-                          <div>{formatNumber(row.totalTokens)}</div>
-                          <div className="mt-1 text-white/50">
-                            {formatNumber(row.totalRequests)} requests
-                          </div>
-                        </td>
-                        <td className="px-3 py-4">{formatCurrency(row.totalCost)}</td>
-                        <td className="px-3 py-4">
-                          <div>{formatDate(row.lastActivityAt)}</div>
-                          <div className="mt-1 text-white/50">
-                            Joined {formatDate(row.createdAt)}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-                    Usage
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
-                    Request totals by public twin
-                  </h2>
-                </div>
-              </div>
-
-              <div className="mt-5 overflow-x-auto">
-                <table className="min-w-full text-left text-sm text-white/78">
-                  <thead className="text-xs uppercase tracking-[0.2em] text-white/42">
-                    <tr>
-                      <th className="px-3 py-3">User ID</th>
-                      <th className="px-3 py-3">Email</th>
-                      <th className="px-3 py-3">Public twin</th>
-                      <th className="px-3 py-3">Requests</th>
-                      <th className="px-3 py-3">Prompt</th>
-                      <th className="px-3 py-3">Completion</th>
-                      <th className="px-3 py-3">Total tokens</th>
-                      <th className="px-3 py-3">Cost</th>
-                      <th className="px-3 py-3">Last request</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.usage.map((row) => (
-                      <tr
-                        key={`${row.userId}-${row.publicProfileId}`}
-                        className="border-t border-white/8 align-top"
-                      >
-                        <td className="px-3 py-4 font-mono text-xs text-white/72">{row.userId}</td>
-                        <td className="px-3 py-4">{row.email}</td>
-                        <td className="px-3 py-4">
-                          <div className="font-medium text-white">{row.publicProfileId}</div>
-                          <a
-                            href={row.publicTwinUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-2 inline-block text-sky-200 underline decoration-white/20 underline-offset-4"
-                          >
-                            {row.publicTwinUrl}
-                          </a>
-                        </td>
-                        <td className="px-3 py-4">{formatNumber(row.requestsSent)}</td>
-                        <td className="px-3 py-4">{formatNumber(row.promptTokens)}</td>
-                        <td className="px-3 py-4">{formatNumber(row.completionTokens)}</td>
-                        <td className="px-3 py-4 font-semibold text-white">
-                          {formatNumber(row.totalTokens)}
-                        </td>
-                        <td className="px-3 py-4">{formatCurrency(row.totalCost)}</td>
-                        <td className="px-3 py-4">{formatDate(row.lastRequestAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </>
+        {mode === "admin" && adminData ? (
+          <AdminDashboard
+            data={adminData}
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+          />
         ) : null}
       </div>
     </main>
