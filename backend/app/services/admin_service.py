@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from ..config import get_settings
 from ..db import get_connection
+from .payment_service import PLAN_LABEL, ensure_payment_schema
 from .profile_service import ensure_schema, frontend_public_link
 
 
@@ -20,6 +22,10 @@ def get_admin_dashboard_data() -> dict[str, object]:
     """Return summary, user, and usage data for the admin dashboard."""
 
     ensure_schema()
+    ensure_payment_schema()
+    free_public_chat_limit = get_settings().free_public_chat_limit
+    if free_public_chat_limit <= 0:
+        free_public_chat_limit = 2
 
     with get_connection(autocommit=True) as connection:
         with connection.cursor() as cursor:
@@ -112,6 +118,30 @@ def get_admin_dashboard_data() -> dict[str, object]:
             )
             usage_rows = cursor.fetchall()
 
+            cursor.execute(
+                """
+                select
+                  au.id as user_id,
+                  au.email,
+                  cp.public_profile_id,
+                  cp.first_name,
+                  cp.second_name,
+                  ba.status,
+                  ba.free_public_chat_count,
+                  ba.access_starts_at,
+                  ba.access_expires_at,
+                  ba.updated_at
+                from auth_users au
+                left join candidate_profiles cp
+                  on cp.user_id = au.id
+                left join billing_access ba
+                  on ba.owner_user_id = au.id
+                 and cp.id = ba.candidate_profile_id
+                order by au.created_at desc
+                """
+            )
+            subscription_rows = cursor.fetchall()
+
     return {
         "summary": {
             "totalUsers": int(summary_row["total_users"]) if summary_row else 0,
@@ -166,5 +196,29 @@ def get_admin_dashboard_data() -> dict[str, object]:
                 "lastRequestAt": row["last_request_at"],
             }
             for row in usage_rows
+        ],
+        "subscriptions": [
+            {
+                "userId": str(row["user_id"]),
+                "email": str(row["email"]),
+                "publicProfileId": row["public_profile_id"],
+                "publicTwinUrl": (
+                    frontend_public_link(
+                        first_name=str(row["first_name"]),
+                        second_name=str(row["second_name"]),
+                        public_profile_id=str(row["public_profile_id"]),
+                    )
+                    if row["public_profile_id"]
+                    else None
+                ),
+                "status": str(row["status"]) if row["status"] else "inactive",
+                "planLabel": PLAN_LABEL if row["status"] == "active" else "Free plan",
+                "freePublicChatsUsed": int(row["free_public_chat_count"] or 0),
+                "freePublicChatsLimit": free_public_chat_limit,
+                "accessStartsAt": row["access_starts_at"],
+                "accessExpiresAt": row["access_expires_at"],
+                "updatedAt": row["updated_at"],
+            }
+            for row in subscription_rows
         ],
     }

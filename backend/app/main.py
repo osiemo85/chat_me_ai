@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.router import api_router
 from .config import get_settings
 from .services.auth_service import ensure_auth_schema
+from .services.payment_service import ensure_payment_schema
 from .services.profile_service import ensure_schema
 
 
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     def startup() -> None:
         ensure_auth_schema()
         ensure_schema()
+        ensure_payment_schema()
 
     return app
 

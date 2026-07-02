@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     auth_password_iterations: int = 600000
     google_client_id: str | None = None
     google_client_secret: str | None = None
+    paystack_secret_key: str | None = None
+    paystack_public_key: str | None = None
+    paystack_hosted_plan_url: str = "https://paystack.shop/pay/pj14u6z8jv"
+    app_public_base_url: str = "http://localhost:3000"
+    free_public_chat_limit: int = 2
     admin_emails: str = ""
     max_upload_bytes: int = 10 * 1024 * 1024
     chunk_overlap: int = 200
