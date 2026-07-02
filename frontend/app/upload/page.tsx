@@ -77,6 +77,24 @@ type AuthMeResponse = {
   user: AuthUser;
 };
 
+type BillingStatus = {
+  status: string;
+  freePublicChatsUsed: number;
+  freePublicChatsLimit: number;
+  accessStartsAt: string | null;
+  accessExpiresAt: string | null;
+  hostedPlanUrl: string;
+  paymentRequired: boolean;
+  planLabel: string;
+  currency: string;
+  amountDisplay: string;
+};
+
+type CheckoutLinkPayload = {
+  hostedUrl: string;
+  callbackUrl: string;
+};
+
 type ProcessStage = "idle" | "uploading" | "extracting" | "preparing" | "ready" | "failed";
 
 const initialState: FormState = {
@@ -153,6 +171,10 @@ function UploadPageContent() {
   const [existingProfileId, setExistingProfileId] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
+  const [isLoadingBilling, setIsLoadingBilling] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const pollingTimerRef = useRef<number | null>(null);
 
   const completion = useMemo(() => {
@@ -182,6 +204,7 @@ function UploadPageContent() {
     processStage === "preparing";
   const isCompleteView = processStage === "ready" && submissionResult;
   const shareableLink = submissionResult?.public_link ?? null;
+  const isSubscribed = billingStatus?.status === "active";
 
   useEffect(() => {
     let cancelled = false;
@@ -322,6 +345,56 @@ function UploadPageContent() {
       cancelled = true;
     };
   }, [currentUser, isAuthenticating, normalizedPublicId]);
+
+  useEffect(() => {
+    if (isAuthenticating || !currentUser) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadBilling() {
+      setIsLoadingBilling(true);
+      setBillingError(null);
+
+      try {
+        const response = await apiFetch("/api/v1/payments/me", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as BillingStatus | { detail?: string };
+
+        if (!response.ok) {
+          throw new Error(
+            "detail" in payload && payload.detail
+              ? payload.detail
+              : "Unable to load billing status.",
+          );
+        }
+
+        if (!cancelled) {
+          setBillingStatus(payload as BillingStatus);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBillingError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load billing status.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingBilling(false);
+        }
+      }
+    }
+
+    void loadBilling();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, isAuthenticating]);
 
   useEffect(() => {
     return () => {
@@ -510,6 +583,35 @@ function UploadPageContent() {
     }
   }
 
+  async function handleStartCheckout() {
+    setIsStartingCheckout(true);
+    setBillingError(null);
+
+    try {
+      const response = await apiFetch("/api/v1/payments/paystack/checkout-link", {
+        method: "POST",
+      });
+      const payload = (await response.json()) as CheckoutLinkPayload | { detail?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          "detail" in payload && payload.detail
+            ? payload.detail
+            : "Unable to start yearly access checkout.",
+        );
+      }
+
+      window.location.href = (payload as CheckoutLinkPayload).hostedUrl;
+    } catch (error) {
+      setBillingError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start yearly access checkout.",
+      );
+      setIsStartingCheckout(false);
+    }
+  }
+
   const processSteps = [
     {
       key: "uploading",
@@ -560,6 +662,12 @@ function UploadPageContent() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <Link
+              href="/subscription"
+              className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-6 font-semibold text-slate-950 transition hover:bg-sky-300"
+            >
+              {isSubscribed ? "View subscription!" : "Subscribe Now"}
+            </Link>
             <Link
               href="/"
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-6 font-semibold text-white transition hover:bg-white/12"
@@ -874,6 +982,69 @@ function UploadPageContent() {
             </form>
 
             <aside className="space-y-6">
+              <div className="rounded-[2rem] border border-sky-300/20 bg-sky-400/8 p-6 backdrop-blur-xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-200">
+                  Billing
+                </p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">
+                  Avoid public chat limits
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-white/74">
+                  Your twin can be created and published without payment. Yearly access removes the public free-chat limit once the shared quota is exhausted.
+                </p>
+
+                {isLoadingBilling ? (
+                  <p className="mt-4 text-sm text-white/64">Loading billing status...</p>
+                ) : billingStatus ? (
+                  <div className="mt-5 space-y-4">
+                    <div className="rounded-[1.4rem] border border-white/10 bg-black/18 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/42">
+                        Status
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-white">
+                        {billingStatus.status}
+                      </p>
+                      <p className="mt-2 text-sm text-white/68">
+                        Free usage: {billingStatus.freePublicChatsUsed} / {billingStatus.freePublicChatsLimit}
+                      </p>
+                    </div>
+
+                    <div className="rounded-[1.4rem] border border-white/10 bg-black/18 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/42">
+                        Plan
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-white">
+                        {billingStatus.planLabel}
+                      </p>
+                      <p className="mt-2 text-sm text-white/68">
+                        Current Paystack-hosted subscription price: {billingStatus.amountDisplay}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleStartCheckout()}
+                        disabled={isStartingCheckout}
+                        className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-5 font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200"
+                      >
+                        {isStartingCheckout
+                          ? "Redirecting..."
+                          : billingStatus.status === "active"
+                            ? "Renew yearly access"
+                            : "Activate yearly access"}
+                      </button>
+                      <Link
+                        href="/dashboard"
+                        className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-5 font-semibold text-white transition hover:bg-white/12"
+                      >
+                        Open billing dashboard
+                      </Link>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <div className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
                   Completion
@@ -946,6 +1117,12 @@ function UploadPageContent() {
               {prefillError ? (
                 <div className="rounded-[1.5rem] border border-rose-400/25 bg-rose-400/10 p-4 text-sm leading-7 text-rose-100">
                   {prefillError}
+                </div>
+              ) : null}
+
+              {billingError ? (
+                <div className="rounded-[1.5rem] border border-rose-400/25 bg-rose-400/10 p-4 text-sm leading-7 text-rose-100">
+                  {billingError}
                 </div>
               ) : null}
             </aside>

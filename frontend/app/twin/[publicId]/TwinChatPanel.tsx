@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, KeyboardEvent, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -16,6 +17,11 @@ type ChatState = {
   answer: string;
   usedContext: boolean;
   sources: number[];
+};
+
+type ChatErrorState = {
+  detail?: string;
+  code?: string;
 };
 
 type HistoryMessage = {
@@ -38,6 +44,7 @@ export function TwinChatPanel({
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<HistoryMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   async function submitQuestion(nextMessage: string) {
@@ -48,6 +55,7 @@ export function TwinChatPanel({
 
     setIsLoading(true);
     setError(null);
+    setErrorCode(null);
     const nextHistory = [...messages, { role: "user" as const, content: trimmedMessage }];
     setMessages(nextHistory);
     setMessage("");
@@ -65,14 +73,21 @@ export function TwinChatPanel({
         },
       );
 
-      const payload = (await response.json()) as
-        | ChatState
-        | { detail?: string };
+      const payload = (await response.json()) as ChatState | ChatErrorState;
 
       if (!response.ok) {
-        const detail =
-          "detail" in payload ? payload.detail : "Unable to answer that question.";
-        throw new Error(detail ?? "Unable to answer that question.");
+        if ("code" in payload && payload.code === "subscription_required") {
+          setErrorCode("subscription_required");
+          throw new Error(
+            ("detail" in payload ? payload.detail : undefined) ??
+              "This account has hit its access limit.",
+          );
+        }
+
+        throw new Error(
+          ("detail" in payload ? payload.detail : undefined) ??
+            "Unable to answer that question.",
+        );
       }
 
       const chatResult = payload as ChatState;
@@ -195,9 +210,19 @@ export function TwinChatPanel({
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-[1.25rem] border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-          {error}
-        </p>
+        <div className="mt-4 rounded-[1.25rem] border border-rose-300/30 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
+          <p>{error}</p>
+          {errorCode === "subscription_required" ? (
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/subscription"
+                className="rounded-full bg-sky-400 px-4 py-2 font-semibold text-slate-950 transition hover:bg-sky-300"
+              >
+                Go to subscription page
+              </Link>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       <form className="mt-5" onSubmit={handleSubmit}>
