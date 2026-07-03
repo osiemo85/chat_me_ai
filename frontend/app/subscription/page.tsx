@@ -24,6 +24,8 @@ type CheckoutLinkPayload = {
   callbackUrl: string;
 };
 
+const PROFILE_REQUIRED_ERROR = "Profile not found.";
+
 const planCards = [
   {
     id: "yearly-access",
@@ -75,6 +77,7 @@ export default function SubscriptionPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const isSubscribed = billingStatus?.status === "active";
+  const needsProfileBeforeSubscription = error === PROFILE_REQUIRED_ERROR;
 
   useEffect(() => {
     let cancelled = false;
@@ -212,7 +215,17 @@ export default function SubscriptionPage() {
 
         {error ? (
           <section className="rounded-[1.6rem] border border-rose-300/25 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-            {error}
+            {needsProfileBeforeSubscription ? (
+              <p>
+                Profile not found. Complete it{" "}
+                <Link href="/upload" className="font-semibold underline underline-offset-4">
+                  here
+                </Link>{" "}
+                before you subscribe.
+              </p>
+            ) : (
+              error
+            )}
           </section>
         ) : null}
 
