@@ -306,10 +306,14 @@ export default function SubscriptionPage() {
                     <button
                       type="button"
                       onClick={() => void handleCheckout()}
-                      disabled={isStartingCheckout || isLoading}
+                      disabled={isStartingCheckout || isLoading || isSubscribed}
                       className="mt-auto inline-flex min-h-12 w-full items-center justify-center rounded-full bg-white px-5 text-sm font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {isStartingCheckout ? "Redirecting..." : plan.cta}
+                      {isSubscribed
+                        ? "Subscribed!"
+                        : isStartingCheckout
+                          ? "Redirecting..."
+                          : plan.cta}
                     </button>
                   </>
                 ) : (

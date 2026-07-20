@@ -60,9 +60,48 @@ def test_aiven_connections_remain_supported(monkeypatch) -> None:
     assert "prepare_threshold" not in captured
 
 
+def test_local_connections_use_database_url(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeConnection:
+        def close(self) -> None:
+            pass
+
+    def fake_connect(url: str, **kwargs: object) -> FakeConnection:
+        captured["url"] = url
+        captured.update(kwargs)
+        return FakeConnection()
+
+    monkeypatch.setattr(db, "get_settings", lambda: SimpleNamespace(
+        db_type="local",
+        database_url="postgresql://postgres:postgres@localhost:5432/chat_me_ai",
+        aiven_service_url=None,
+    ))
+    monkeypatch.setattr(db, "connect", fake_connect)
+
+    with db.get_connection():
+        pass
+
+    assert captured["url"] == "postgresql://postgres:postgres@localhost:5432/chat_me_ai"
+    assert captured["sslmode"] == "disable"
+    assert "prepare_threshold" not in captured
+
+
 def test_missing_supabase_database_url_fails_with_actionable_error(monkeypatch) -> None:
     monkeypatch.setattr(db, "get_settings", lambda: SimpleNamespace(
         db_type="supabase",
+        database_url=None,
+        aiven_service_url=None,
+    ))
+
+    with pytest.raises(RuntimeError, match="DATABASE_URL must be configured"):
+        with db.get_connection():
+            pass
+
+
+def test_missing_local_database_url_fails_with_actionable_error(monkeypatch) -> None:
+    monkeypatch.setattr(db, "get_settings", lambda: SimpleNamespace(
+        db_type="local",
         database_url=None,
         aiven_service_url=None,
     ))

@@ -22,7 +22,7 @@ def get_connection(autocommit: bool = False) -> Iterator[Connection]:
     """
 
     settings = get_settings()
-    if settings.db_type == "supabase":
+    if settings.db_type in {"local", "supabase"}:
         database_url = settings.database_url
     elif settings.db_type == "aiven":
         database_url = settings.aiven_service_url or settings.database_url
@@ -30,15 +30,20 @@ def get_connection(autocommit: bool = False) -> Iterator[Connection]:
         raise ValueError(f"Unsupported DB_TYPE: {settings.db_type}")
 
     if not database_url:
-        setting_name = "DATABASE_URL" if settings.db_type == "supabase" else "AIVEN_SERVICE_URL"
+        setting_name = (
+            "DATABASE_URL"
+            if settings.db_type in {"local", "supabase"}
+            else "AIVEN_SERVICE_URL"
+        )
         raise RuntimeError(f"{setting_name} must be configured for DB_TYPE={settings.db_type}.")
 
     parsed_url = urlparse(database_url)
     query = parse_qs(parsed_url.query)
+    default_sslmode = "disable" if settings.db_type == "local" else "require"
     connection_options: dict[str, object] = {
         "autocommit": autocommit,
         "row_factory": dict_row,
-        "sslmode": query.get("sslmode", ["require"])[0],
+        "sslmode": query.get("sslmode", [default_sslmode])[0],
     }
     if parsed_url.port == 6543:
         connection_options["prepare_threshold"] = None

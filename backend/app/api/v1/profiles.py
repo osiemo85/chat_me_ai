@@ -1,6 +1,7 @@
 """Profile upload and public profile routes."""
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 
 from ...dependencies import require_authenticated_user
 from ...services.auth_service import AuthenticatedUser
@@ -18,6 +19,7 @@ from ...services.profile_service import (
     process_profile_submission,
     validate_upload_payload,
 )
+from ...services.storage_service import resolve_local_asset_path
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
@@ -95,6 +97,21 @@ def read_public_profile(public_profile_id: str) -> PublicProfileResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
 
     return PublicProfileResponse(**profile)
+
+
+@router.get("/assets/{asset_path:path}")
+def read_local_profile_asset(asset_path: str) -> FileResponse:
+    """Serve profile assets from the local storage backend."""
+
+    try:
+        file_path = resolve_local_asset_path(asset_path)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+
+    return FileResponse(file_path)
 
 
 @router.get("/edit/me", response_model=EditableProfileResponse)
