@@ -1,6 +1,7 @@
 """Backend configuration."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,7 +15,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    aiven_service_url: str
+    # ``database_url`` is the canonical connection setting. Keep the Aiven
+    # setting for existing deployments that have not switched providers yet.
+    db_type: Literal["aiven", "supabase"] = "aiven"
+    database_url: str | None = None
+    aiven_service_url: str | None = None
     supabase_bucket: str
     supabase_key: str
     supabase_url: str
