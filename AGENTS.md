@@ -48,14 +48,6 @@ Do not recreate something that already exists in the codebase or standard toolin
 When a task decomposes cleanly, work in parallel where practical.
 If a change crosses a boundary, make the contract explicit.
 
-# Digital twin guardrails
-The digital twin must answer only from retrieved CV context and the selected persona.
-Do not fabricate work history, education, companies, certifications, achievements, skills, dates, or personal details.
-If the CV does not provide the answer, say that the CV does not provide that information.
-Persona affects tone and presentation only, never factual content.
-Employer-facing answers must stay professional, concise, and grounded.
-Do not expose internal database IDs in public URLs.
-Do not add new personal data collection unless explicitly required.
 
 # Privacy and logging
 Never print, commit, summarize, or expose values from `.env` or `.env.local`.
