@@ -50,7 +50,7 @@ function TwinAvatar({
         src={candidateImageUrl}
         alt=""
         title={candidateName}
-        className="h-10 w-10 rounded-full border border-white/12 object-cover object-top shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
+        className="h-8 w-8 rounded-full border border-white/12 object-cover object-top shadow-[0_8px_24px_rgba(0,0,0,0.22)] sm:h-9 sm:w-9"
       />
     );
   }
@@ -58,7 +58,7 @@ function TwinAvatar({
   return (
     <div
       title={candidateName}
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-cyan-300/12 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100"
+      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-cyan-300/12 text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-cyan-100 sm:h-9 sm:w-9 sm:text-[0.65rem]"
     >
       {candidateName
         .split(" ")
@@ -78,7 +78,7 @@ function ThinkingIndicator({
 }) {
   return (
     <div className="flex justify-start" aria-live="polite" aria-label="Twin is thinking">
-      <div className="flex max-w-[90%] items-end gap-3 sm:max-w-[78%]">
+      <div className="flex w-full max-w-[98%] items-end gap-3 sm:max-w-[92%] md:max-w-[88%] lg:max-w-[84%] xl:max-w-[80%]">
         <TwinAvatar candidateImageUrl={candidateImageUrl} candidateName={candidateName} />
         <div className="rounded-[1.5rem] border border-cyan-300/20 bg-cyan-400/8 p-5 shadow-[0_0_36px_rgba(34,211,238,0.08)]">
           <div className="flex items-center gap-3 text-sm font-medium text-white/78">
@@ -190,7 +190,7 @@ export function TwinChatPanel({
     <section className="chat-space relative isolate overflow-hidden rounded-2xl border border-white/10 bg-[#050505] shadow-[0_24px_80px_rgba(0,0,0,0.3)] sm:rounded-[1.5rem]">
       <ChatStarfield />
 
-      <div className="relative z-10 p-4 sm:p-5 lg:p-6">
+      <div className="relative z-10 p-3 sm:p-5 lg:p-6 xl:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
           What you can ask
         </p>
@@ -219,7 +219,7 @@ export function TwinChatPanel({
                 }`}
               >
                 <div
-                  className={`flex max-w-[94%] items-end gap-2 sm:max-w-[78%] ${
+                  className={`flex w-full max-w-[98%] items-end gap-2 sm:max-w-[92%] md:max-w-[88%] lg:max-w-[84%] xl:max-w-[80%] ${
                     entry.role === "assistant" ? "flex-row" : "flex-row-reverse"
                   }`}
                 >
@@ -298,7 +298,7 @@ export function TwinChatPanel({
               disabled={isLoading}
               className="absolute bottom-2 right-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200 sm:bottom-3 sm:right-3 sm:min-h-10"
             >
-              {isLoading ? "Thinking..." : "Send"}
+              {isLoading ? "Thinking..." : "Ask"}
             </button>
           </div>
         </form>

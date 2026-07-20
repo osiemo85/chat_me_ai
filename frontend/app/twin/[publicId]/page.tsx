@@ -163,10 +163,10 @@ export default async function TwinPage({ params }: TwinPageProps) {
               Chat with Me
             </p>
             <h1
-              className="mt-2 max-w-5xl text-[clamp(1.65rem,5.5vw,5.7rem)] font-semibold leading-[1] text-white sm:mt-3"
+              className="mt-2 max-w-5xl text-[clamp(1.5rem,4.8vw,4.9rem)] font-semibold leading-[1] text-white sm:mt-3"
               aria-label={heroText}
             >
-              <TypewriterName text={heroText} />
+              <TypewriterName text={heroText} loop />
             </h1>
           </div>
           <div className="col-span-2 max-w-3xl md:col-span-1 md:col-start-2">
@@ -198,7 +198,7 @@ export default async function TwinPage({ params }: TwinPageProps) {
         </div>
       </section>
 
-      <div id="chat" className="mx-auto w-full max-w-6xl scroll-mt-4 px-3 py-5 sm:px-6 sm:py-6 lg:px-8">
+      <div id="chat" className="mx-auto w-full max-w-7xl scroll-mt-4 px-2 py-5 sm:px-4 sm:py-6 lg:px-6 xl:px-8">
         <TwinChatPanel
           publicProfileId={profile.publicProfileId}
           candidateName={fullName}
