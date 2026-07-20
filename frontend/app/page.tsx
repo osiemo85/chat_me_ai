@@ -350,8 +350,8 @@ function HomeContent() {
             </h1>
 
             <p className="mt-4 mx-auto max-w-2xl text-sm leading-6 text-white/72 sm:text-base sm:leading-7">
-              Build a compact public AI twin from your CV, photo, persona,
-              and links so employers can ask about your background any time.
+              Build a public AI twin from your CV, photo, persona, and equip it
+              with your social media links so employers can talk to you any time.
             </p>
 
               <div className="mt-6 flex flex-wrap justify-center gap-3">
