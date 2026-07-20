@@ -36,6 +36,69 @@ const STARTER_QUESTIONS = [
   "What should an employer know first about you?",
 ];
 
+function TwinAvatar({
+  candidateImageUrl,
+  candidateName,
+}: {
+  candidateImageUrl: string | null;
+  candidateName: string;
+}) {
+  if (candidateImageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={candidateImageUrl}
+        alt=""
+        title={candidateName}
+        className="h-10 w-10 rounded-full border border-white/12 object-cover object-top shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
+      />
+    );
+  }
+
+  return (
+    <div
+      title={candidateName}
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-cyan-300/12 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100"
+    >
+      {candidateName
+        .split(" ")
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)}
+    </div>
+  );
+}
+
+function ThinkingIndicator({
+  candidateImageUrl,
+  candidateName,
+}: {
+  candidateImageUrl: string | null;
+  candidateName: string;
+}) {
+  return (
+    <div className="flex justify-start" aria-live="polite" aria-label="Twin is thinking">
+      <div className="flex max-w-[90%] items-end gap-3 sm:max-w-[78%]">
+        <TwinAvatar candidateImageUrl={candidateImageUrl} candidateName={candidateName} />
+        <div className="rounded-[1.5rem] border border-cyan-300/20 bg-cyan-400/8 p-5 shadow-[0_0_36px_rgba(34,211,238,0.08)]">
+          <div className="flex items-center gap-3 text-sm font-medium text-white/78">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-60" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-cyan-200" />
+            </span>
+            <span>Thinking...</span>
+            <span className="flex items-center gap-1" aria-hidden="true">
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-100/80 [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-100/70 [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-100/60" />
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TwinChatPanel({
   publicProfileId,
   candidateName,
@@ -161,26 +224,10 @@ export function TwinChatPanel({
                 }`}
               >
                 {entry.role === "assistant" ? (
-                  candidateImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={candidateImageUrl}
-                      alt=""
-                      title={candidateName}
-                      className="h-10 w-10 rounded-full border border-white/12 object-cover object-top shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
-                    />
-                  ) : (
-                    <div
-                      title={candidateName}
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-cyan-300/12 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100"
-                    >
-                      {candidateName
-                        .split(" ")
-                        .map((part) => part[0])
-                        .join("")
-                        .slice(0, 2)}
-                    </div>
-                  )
+                  <TwinAvatar
+                    candidateImageUrl={candidateImageUrl}
+                    candidateName={candidateName}
+                  />
                 ) : (
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-xs font-semibold uppercase tracking-[0.12em] text-white/80"
@@ -206,6 +253,13 @@ export function TwinChatPanel({
               </div>
             </div>
           ))
+        ) : null}
+
+        {isLoading ? (
+          <ThinkingIndicator
+            candidateImageUrl={candidateImageUrl}
+            candidateName={candidateName}
+          />
         ) : null}
       </div>
 
@@ -244,7 +298,7 @@ export function TwinChatPanel({
             disabled={isLoading}
             className="absolute bottom-3 right-3 inline-flex min-h-11 items-center justify-center rounded-full bg-sky-400 px-5 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200"
           >
-            {isLoading ? "..." : "Send"}
+            {isLoading ? "Thinking..." : "Send"}
           </button>
         </div>
       </form>

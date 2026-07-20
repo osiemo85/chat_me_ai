@@ -18,7 +18,13 @@ from .auth_service import AuthenticatedUser, ensure_auth_schema
 from .chunking_service import chunk_text
 from .cv_parser_service import extract_pdf_text
 from .embedding_service import embed_texts
-from .storage_service import create_signed_url, ensure_bucket_exists, remove_files, upload_file
+from .storage_service import (
+    create_signed_url,
+    ensure_bucket_exists,
+    get_storage_bucket_name,
+    remove_files,
+    upload_file,
+)
 
 AssetType = Literal["cv", "passport_photo"]
 Status = Literal["pending", "uploading", "uploaded", "extracting", "chunked", "completed", "failed"]
@@ -315,8 +321,8 @@ def _insert_pending_asset(
 ) -> str:
     asset_id = str(uuid4())
     now = _now()
-    settings = get_settings()
     storage_path = _asset_storage_path(public_profile_id, asset_type, filename)
+    storage_bucket = get_storage_bucket_name()
     version = _next_asset_version(connection, candidate_profile_id, asset_type)
 
     with connection.cursor() as cursor:
@@ -344,7 +350,7 @@ def _insert_pending_asset(
                 asset_type,
                 filename,
                 content_type,
-                settings.supabase_bucket,
+                storage_bucket,
                 storage_path,
                 version,
                 now,

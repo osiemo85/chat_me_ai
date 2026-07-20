@@ -139,8 +139,10 @@ create table chunks (
   the same shareable link instead of creating a new identity each time.
 - Store actual files in Supabase and persist only the bucket and object path in
   PostgreSQL.
-- Use `AIVEN_SERVICE_URL` for the future PostgreSQL connection once the client
-  library is selected.
+- Set `DB_TYPE=supabase` and provide the Supabase PostgreSQL connection string
+  in `DATABASE_URL`. The backend supports Supabase transaction pooler URLs
+  on port 6543 and disables prepared statements automatically. Existing Aiven
+  deployments can keep `DB_TYPE=aiven` with `AIVEN_SERVICE_URL`.
 - Environment variables expected for storage and embeddings:
   `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_BUCKET`,
   `NVIDIA_API_KEY`, `MODEL_NAME`, and optional `NVIDIA_TRUNCATE`.

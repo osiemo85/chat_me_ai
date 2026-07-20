@@ -90,11 +90,6 @@ type BillingStatus = {
   amountDisplay: string;
 };
 
-type CheckoutLinkPayload = {
-  hostedUrl: string;
-  callbackUrl: string;
-};
-
 type ProcessStage = "idle" | "uploading" | "extracting" | "preparing" | "ready" | "failed";
 
 const initialState: FormState = {
@@ -172,9 +167,6 @@ function UploadPageContent() {
   const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
-  const [isLoadingBilling, setIsLoadingBilling] = useState(false);
-  const [billingError, setBillingError] = useState<string | null>(null);
-  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const pollingTimerRef = useRef<number | null>(null);
 
   const completion = useMemo(() => {
@@ -354,9 +346,6 @@ function UploadPageContent() {
     let cancelled = false;
 
     async function loadBilling() {
-      setIsLoadingBilling(true);
-      setBillingError(null);
-
       try {
         const response = await apiFetch("/api/v1/payments/me", {
           cache: "no-store",
@@ -374,17 +363,9 @@ function UploadPageContent() {
         if (!cancelled) {
           setBillingStatus(payload as BillingStatus);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setBillingError(
-            error instanceof Error
-              ? error.message
-              : "Unable to load billing status.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingBilling(false);
+          setBillingStatus(null);
         }
       }
     }
@@ -583,35 +564,6 @@ function UploadPageContent() {
     }
   }
 
-  async function handleStartCheckout() {
-    setIsStartingCheckout(true);
-    setBillingError(null);
-
-    try {
-      const response = await apiFetch("/api/v1/payments/paystack/checkout-link", {
-        method: "POST",
-      });
-      const payload = (await response.json()) as CheckoutLinkPayload | { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          "detail" in payload && payload.detail
-            ? payload.detail
-            : "Unable to start yearly access checkout.",
-        );
-      }
-
-      window.location.href = (payload as CheckoutLinkPayload).hostedUrl;
-    } catch (error) {
-      setBillingError(
-        error instanceof Error
-          ? error.message
-          : "Unable to start yearly access checkout.",
-      );
-      setIsStartingCheckout(false);
-    }
-  }
-
   const processSteps = [
     {
       key: "uploading",
@@ -646,6 +598,33 @@ function UploadPageContent() {
   return (
     <main className="min-h-screen bg-[var(--bg)] px-6 py-16 text-[var(--text)] sm:px-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+        {isSubscribed ? (
+          <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-3">
+              <Link
+                href="/subscription"
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-6 font-semibold text-slate-950 transition hover:bg-sky-300"
+              >
+                View subscription!
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-6 font-semibold text-white transition hover:bg-white/12"
+              >
+                Back to Home
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-black/20 px-6 font-semibold text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isLoggingOut ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
@@ -661,28 +640,30 @@ function UploadPageContent() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/subscription"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-6 font-semibold text-slate-950 transition hover:bg-sky-300"
-            >
-              {isSubscribed ? "View subscription!" : "Subscribe Now"}
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-6 font-semibold text-white transition hover:bg-white/12"
-            >
-              Back to Home
-            </Link>
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-black/20 px-6 font-semibold text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isLoggingOut ? "Logging out..." : "Logout"}
-            </button>
-          </div>
+          {!isSubscribed ? (
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/subscription"
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-6 font-semibold text-slate-950 transition hover:bg-sky-300"
+              >
+                Subscribe Now
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-6 font-semibold text-white transition hover:bg-white/12"
+              >
+                Back to Home
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-black/20 px-6 font-semibold text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isLoggingOut ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {isAuthenticating ? (
@@ -818,7 +799,7 @@ function UploadPageContent() {
         ) : null}
 
         {!isAuthenticating && !isProcessingView && !isCompleteView ? (
-          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.06fr)_minmax(20.5rem,0.94fr)] xl:grid-cols-[minmax(0,0.98fr)_minmax(22.5rem,0.98fr)] lg:items-start">
             <form
               onSubmit={handleSubmit}
               className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl sm:p-8"
@@ -981,151 +962,97 @@ function UploadPageContent() {
               ) : null}
             </form>
 
-            <aside className="space-y-6">
-              <div className="rounded-[2rem] border border-sky-300/20 bg-sky-400/8 p-6 backdrop-blur-xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-200">
-                  Billing
-                </p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">
-                  Avoid public chat limits
-                </h2>
-                <p className="mt-3 text-sm leading-7 text-white/74">
-                  Your twin can be created and published without payment. Yearly access removes the public free-chat limit once the shared quota is exhausted.
-                </p>
-
-                {isLoadingBilling ? (
-                  <p className="mt-4 text-sm text-white/64">Loading billing status...</p>
-                ) : billingStatus ? (
-                  <div className="mt-5 space-y-4">
-                    <div className="rounded-[1.4rem] border border-white/10 bg-black/18 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/42">
-                        Status
-                      </p>
-                      <p className="mt-2 text-lg font-semibold text-white">
-                        {billingStatus.status}
-                      </p>
-                      <p className="mt-2 text-sm text-white/68">
-                        Free usage: {billingStatus.freePublicChatsUsed} / {billingStatus.freePublicChatsLimit}
-                      </p>
-                    </div>
-
-                    <div className="rounded-[1.4rem] border border-white/10 bg-black/18 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/42">
-                        Plan
-                      </p>
-                      <p className="mt-2 text-lg font-semibold text-white">
-                        {billingStatus.planLabel}
-                      </p>
-                      <p className="mt-2 text-sm text-white/68">
-                        Current Paystack-hosted subscription price: {billingStatus.amountDisplay}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => void handleStartCheckout()}
-                        disabled={isStartingCheckout}
-                        className="inline-flex min-h-12 items-center justify-center rounded-full bg-sky-400 px-5 font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200"
-                      >
-                        {isStartingCheckout
-                          ? "Redirecting..."
-                          : billingStatus.status === "active"
-                            ? "Renew yearly access"
-                            : "Activate yearly access"}
-                      </button>
-                      <Link
-                        href="/dashboard"
-                        className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/8 px-5 font-semibold text-white transition hover:bg-white/12"
-                      >
-                        Open billing dashboard
-                      </Link>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-                  Completion
-                </p>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-sky-400 transition-all"
-                    style={{ width: `${completion}%` }}
-                  />
-                </div>
-                <p className="mt-3 text-3xl font-semibold text-white">
-                  {completion}%
-                </p>
-                <p className="mt-2 text-sm leading-7 text-white/66">
-                  {activeEditableProfileId
-                    ? "Stored profile details are loaded from the database. Replace only the fields or files you want to update."
-                    : "Required: first name, second name, email, persona, CV PDF, and passport photo."}
-                </p>
-              </div>
-
-              <div className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-                  Preview
-                </p>
-                <dl className="mt-4 space-y-4 text-sm">
-                  <div>
-                    <dt className="text-white/45">Name</dt>
-                    <dd className="mt-1 text-white">
-                      {[form.firstName, form.secondName].filter(Boolean).join(" ") ||
-                        "Not filled yet"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Email</dt>
-                    <dd className="mt-1 text-white">
-                      {form.email || "Not filled yet"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Persona</dt>
-                    <dd className="mt-1 text-white">{form.persona}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">CV file</dt>
-                    <dd className="mt-1 text-white">
-                      {form.cvFileName || "No PDF selected"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Passport photo</dt>
-                    <dd className="mt-1 text-white">
-                      {form.passportFileName || "No passport photo selected"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Social links</dt>
-                    <dd className="mt-1 text-white/78">
-                      {[
-                        form.linkedinUrl && "LinkedIn",
-                        form.githubUrl && "GitHub",
-                        form.otherUrl && "Other",
-                      ]
-                        .filter(Boolean)
-                        .join(", ") || "No social links added"}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-
-              {prefillError ? (
-                <div className="rounded-[1.5rem] border border-rose-400/25 bg-rose-400/10 p-4 text-sm leading-7 text-rose-100">
-                  {prefillError}
+            <div className="space-y-6">
+              {!isSubscribed ? (
+                <div className="rounded-[1.35rem] border border-sky-300/20 bg-sky-400/8 px-4 py-3 backdrop-blur-xl">
+                  <p className="text-xs leading-6 text-white/84">
+                    <span className="font-semibold uppercase tracking-[0.24em] text-sky-200">
+                      FREE ACCESS,
+                    </span>{" "}
+                    {billingStatus
+                      ? `Current free usage: ${billingStatus.freePublicChatsUsed} / ${billingStatus.freePublicChatsLimit} chats used. Subscription: ${billingStatus.status}.`
+                      : "Current free usage status is unavailable right now."}
+                  </p>
                 </div>
               ) : null}
 
-              {billingError ? (
-                <div className="rounded-[1.5rem] border border-rose-400/25 bg-rose-400/10 p-4 text-sm leading-7 text-rose-100">
-                  {billingError}
+              <aside className="space-y-6">
+                <div className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl xl:h-full">
+                  <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+                    Completion
+                  </p>
+                  <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-sky-400 transition-all"
+                      style={{ width: `${completion}%` }}
+                    />
+                  </div>
+                  <p className="mt-3 text-3xl font-semibold text-white">
+                    {completion}%
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-white/66">
+                    {activeEditableProfileId
+                      ? "Stored profile details are loaded from the database. Replace only the fields or files you want to update."
+                      : "Required: first name, second name, email, persona, CV PDF, and passport photo."}
+                  </p>
+
+                  {prefillError ? (
+                    <div className="mt-6 rounded-[1.5rem] border border-rose-400/25 bg-rose-400/10 p-4 text-sm leading-7 text-rose-100">
+                      {prefillError}
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </aside>
+
+                <div className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl xl:h-full">
+                  <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
+                    Preview
+                  </p>
+                  <dl className="mt-4 space-y-4 text-sm">
+                    <div>
+                      <dt className="text-white/45">Name</dt>
+                      <dd className="mt-1 text-white">
+                        {[form.firstName, form.secondName].filter(Boolean).join(" ") ||
+                          "Not filled yet"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-white/45">Email</dt>
+                      <dd className="mt-1 text-white">
+                        {form.email || "Not filled yet"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-white/45">Persona</dt>
+                      <dd className="mt-1 text-white">{form.persona}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-white/45">CV file</dt>
+                      <dd className="mt-1 text-white">
+                        {form.cvFileName || "No PDF selected"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-white/45">Passport photo</dt>
+                      <dd className="mt-1 text-white">
+                        {form.passportFileName || "No passport photo selected"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-white/45">Social links</dt>
+                      <dd className="mt-1 text-white/78">
+                        {[
+                          form.linkedinUrl && "LinkedIn",
+                          form.githubUrl && "GitHub",
+                          form.otherUrl && "Other",
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "No social links added"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </aside>
+            </div>
           </div>
         ) : null}
       </div>
