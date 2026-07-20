@@ -7,6 +7,8 @@ import remarkGfm from "remark-gfm";
 
 import { getApiBaseUrl } from "@/lib/api";
 
+import { ChatStarfield } from "./ChatStarfield";
+
 type TwinChatPanelProps = {
   publicProfileId: string;
   candidateName: string;
@@ -30,10 +32,8 @@ type HistoryMessage = {
 };
 
 const STARTER_QUESTIONS = [
-  "What are your strongest professional skills?",
   "Tell me about your work experience.",
-  "What responsibilities have you handled?",
-  "What should an employer know first about you?",
+  "What are your strongest professional skills?",
 ];
 
 function TwinAvatar({
@@ -187,121 +187,122 @@ export function TwinChatPanel({
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
-      <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-        Chat with me
-      </p>
-      <p className="mt-4 text-base leading-7 text-white/72">
-        Here are quick questions you can start with. Just click and I will answer.
-      </p>
+    <section className="chat-space relative isolate overflow-hidden rounded-2xl border border-white/10 bg-[#050505] shadow-[0_24px_80px_rgba(0,0,0,0.3)] sm:rounded-[1.5rem]">
+      <ChatStarfield />
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        {STARTER_QUESTIONS.map((question) => (
-          <button
-            key={question}
-            type="button"
-            disabled={isLoading}
-            onClick={() => void submitQuestion(question)}
-            className="cursor-pointer rounded-full border border-white/12 bg-black/18 px-4 py-2 text-sm text-white/84 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {question}
-          </button>
-        ))}
-      </div>
+      <div className="relative z-10 p-4 sm:p-5 lg:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+          What you can ask
+        </p>
 
-      <div className="mt-5 space-y-4">
-        {messages.length > 0 ? (
-          messages.map((entry, index) => (
-            <div
-              key={`${entry.role}-${index}-${entry.content.slice(0, 24)}`}
-              className={`flex ${
-                entry.role === "assistant" ? "justify-start" : "justify-end"
-              }`}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {STARTER_QUESTIONS.map((question) => (
+            <button
+              key={question}
+              type="button"
+              disabled={isLoading}
+              onClick={() => void submitQuestion(question)}
+              className="cursor-pointer rounded-lg border border-white/12 bg-black/35 px-3 py-2 text-left text-xs leading-5 text-white/84 transition hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
             >
+              {question}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {messages.length > 0 ? (
+            messages.map((entry, index) => (
               <div
-                className={`flex max-w-[90%] items-end gap-3 sm:max-w-[78%] ${
-                  entry.role === "assistant" ? "flex-row" : "flex-row-reverse"
+                key={`${entry.role}-${index}-${entry.content.slice(0, 24)}`}
+                className={`flex ${
+                  entry.role === "assistant" ? "justify-start" : "justify-end"
                 }`}
               >
-                {entry.role === "assistant" ? (
-                  <TwinAvatar
-                    candidateImageUrl={candidateImageUrl}
-                    candidateName={candidateName}
-                  />
-                ) : (
-                  <div
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/10 text-xs font-semibold uppercase tracking-[0.12em] text-white/80"
-                    title="You"
-                  >
-                    You
-                  </div>
-                )}
-
                 <div
-                  className={`rounded-[1.5rem] border p-5 ${
-                    entry.role === "assistant"
-                      ? "border-cyan-300/20 bg-cyan-400/8"
-                      : "border-white/10 bg-black/18"
+                  className={`flex max-w-[94%] items-end gap-2 sm:max-w-[78%] ${
+                    entry.role === "assistant" ? "flex-row" : "flex-row-reverse"
                   }`}
                 >
-                  <div className="markdown-answer text-sm leading-7 text-white/78">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {entry.content}
-                    </ReactMarkdown>
+                  {entry.role === "assistant" ? (
+                    <TwinAvatar
+                      candidateImageUrl={candidateImageUrl}
+                      candidateName={candidateName}
+                    />
+                  ) : (
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-white/80"
+                      title="You"
+                    >
+                      You
+                    </div>
+                  )}
+
+                  <div
+                    className={`rounded-xl border px-4 py-3 ${
+                      entry.role === "assistant"
+                        ? "border-cyan-300/20 bg-cyan-400/8"
+                        : "border-white/10 bg-black/35"
+                    }`}
+                  >
+                    <div className="markdown-answer text-sm leading-6 text-white/78">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {entry.content}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))
-        ) : null}
+            ))
+          ) : null}
 
-        {isLoading ? (
-          <ThinkingIndicator
-            candidateImageUrl={candidateImageUrl}
-            candidateName={candidateName}
-          />
-        ) : null}
-      </div>
-
-      {error ? (
-        <div className="mt-4 rounded-[1.25rem] border border-rose-300/30 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
-          <p>{error}</p>
-          {errorCode === "subscription_required" ? (
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/subscription"
-                className="rounded-full bg-sky-400 px-4 py-2 font-semibold text-slate-950 transition hover:bg-sky-300"
-              >
-                Go to subscription page
-              </Link>
-            </div>
+          {isLoading ? (
+            <ThinkingIndicator
+              candidateImageUrl={candidateImageUrl}
+              candidateName={candidateName}
+            />
           ) : null}
         </div>
-      ) : null}
 
-      <form className="mt-5" onSubmit={handleSubmit}>
-        <div className="relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-black/18 transition focus-within:border-sky-300">
-          <textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            onKeyDown={(event) => void handleKeyDown(event)}
-            placeholder={`Ask ${candidateName} a professional question`}
-            className="min-h-32 w-full resize-none bg-transparent px-4 pb-16 pt-4 pr-28 text-sm text-white outline-none placeholder:text-white/35"
-          />
-
-          <div className="pointer-events-none absolute inset-x-4 bottom-3 flex items-center gap-3 text-xs text-white/40">
-            <span>Enter to send</span>
+        {error ? (
+          <div className="mt-4 rounded-xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            <p>{error}</p>
+            {errorCode === "subscription_required" ? (
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Link
+                  href="/subscription"
+                  className="rounded-lg bg-sky-400 px-4 py-2 font-semibold text-slate-950 transition hover:bg-sky-300"
+                >
+                  Go to subscription page
+                </Link>
+              </div>
+            ) : null}
           </div>
+        ) : null}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="absolute bottom-3 right-3 inline-flex min-h-11 items-center justify-center rounded-full bg-sky-400 px-5 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200"
-          >
-            {isLoading ? "Thinking..." : "Send"}
-          </button>
-        </div>
-      </form>
+        <form className="mt-4" onSubmit={handleSubmit}>
+          <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/38 transition focus-within:border-sky-300">
+            <textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              onKeyDown={(event) => void handleKeyDown(event)}
+              placeholder={`Ask ${candidateName} a professional question`}
+              className="min-h-24 w-full resize-none bg-transparent px-3 pb-12 pt-3 pr-24 text-sm text-white outline-none placeholder:text-white/35 sm:min-h-28 sm:px-4 sm:pt-4"
+            />
+
+            <div className="pointer-events-none absolute inset-x-3 bottom-2 flex items-center gap-3 text-[0.65rem] text-white/40 sm:inset-x-4 sm:bottom-3 sm:text-xs">
+              <span>Enter to send</span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="absolute bottom-2 right-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-sky-200 sm:bottom-3 sm:right-3 sm:min-h-10"
+            >
+              {isLoading ? "Thinking..." : "Send"}
+            </button>
+          </div>
+        </form>
+      </div>
     </section>
   );
 }

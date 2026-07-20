@@ -39,6 +39,101 @@ a {
   text-decoration: none;
 }
 
+.public-twin-hero {
+  background:
+    radial-gradient(ellipse at 0% 100%, rgba(0, 88, 210, 0.42), transparent 28%),
+    radial-gradient(ellipse at 100% 100%, rgba(186, 77, 35, 0.28), transparent 24%),
+    linear-gradient(180deg, #000000 0%, #030504 62%, #050505 100%);
+}
+
+.chat-starfield {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  pointer-events: none;
+  opacity: 0.72;
+  mix-blend-mode: screen;
+}
+
+.floating-passport {
+  animation: passport-float 7.5s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.social-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 1.2rem;
+  width: 1.2rem;
+}
+
+.social-icon-linkedin {
+  fill: #0a66c2;
+}
+
+.social-icon-glyph {
+  fill: #ffffff;
+}
+
+.social-icon-github {
+  fill: #f0f6fc;
+}
+
+.social-icon-other {
+  fill: #a7f3d0;
+}
+
+.typewriter-name {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.typewriter-caret {
+  display: inline-block;
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.9);
+  animation: typewriter-caret-blink 0.8s steps(1) infinite;
+}
+
+@keyframes typewriter-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes passport-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-0.6deg);
+  }
+
+  50% {
+    transform: translate3d(0.75rem, -1.15rem, 0) rotate(0.8deg);
+  }
+}
+
+@media (max-width: 639px) {
+  .social-link {
+    min-width: 2.25rem;
+  }
+
+  .social-link .social-icon {
+    height: 1.2rem;
+    width: 1.2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-passport,
+  .typewriter-caret {
+    animation: none;
+  }
+}
+
 .hero-grid {
   background-image:
     linear-gradient(rgba(140, 244, 255, 0.08) 1px, transparent 1px),
