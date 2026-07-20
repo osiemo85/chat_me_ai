@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   title: "Chat Me AI",
   description:
     "Create a public AI twin from your CV and passport photo so employers can chat with you when you are away.",
+  icons: {
+    icon: [{ url: "/logo.ico" }],
+    shortcut: [{ url: "/logo.ico" }],
+    apple: [{ url: "/logo.ico" }],
+  },
 };
 
 export default function RootLayout({
