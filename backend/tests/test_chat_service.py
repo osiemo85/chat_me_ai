@@ -2,18 +2,6 @@ from app.schemas.chat import PublicChatMessage
 from app.services import chat_service
 
 
-def test_is_general_message_detects_greetings() -> None:
-    assert chat_service.is_general_message("Hello there")
-    assert chat_service.is_general_message("thanks")
-    assert not chat_service.is_general_message("What experience do you have with Python?")
-
-
-def test_is_user_identity_question_detects_name_queries() -> None:
-    assert chat_service.is_user_identity_question("Do you remember my name?")
-    assert chat_service.is_user_identity_question("Who am I?")
-    assert not chat_service.is_user_identity_question("What is your experience with Python?")
-
-
 def test_answer_public_question_returns_no_answer_without_chunks(monkeypatch) -> None:
     monkeypatch.setattr(
         chat_service,
@@ -30,74 +18,19 @@ def test_answer_public_question_returns_no_answer_without_chunks(monkeypatch) ->
         )(),
     )
     monkeypatch.setattr(chat_service, "get_current_chunks", lambda _: [])
+    monkeypatch.setattr(
+        chat_service,
+        "_answer_with_rag_agent",
+        lambda *args: ("No matching context.", None),
+    )
 
     result = chat_service.answer_public_question("twin_123", "What is her experience?")
 
-    assert result["answer"] == "I do not have an answer from the CV context."
+    assert result["answer"] == "No matching context."
     assert result["usedContext"] is False
 
 
-def test_answer_public_question_returns_deterministic_identity_reply(monkeypatch) -> None:
-    monkeypatch.setattr(
-        chat_service,
-        "get_candidate_context",
-        lambda _: type(
-            "Candidate",
-            (),
-            {
-                "candidate_profile_id": "candidate-1",
-                "full_name": "Maina Osiemo",
-                "persona": "Professional",
-                "public_profile_id": "twin_123",
-            },
-        )(),
-    )
-
-    result = chat_service.answer_public_question("twin_123", "Do you remember my name?")
-
-    assert result == {
-        "answer": (
-            "I do not know your name unless you share it in this chat. "
-            "If you would like, you can ask about Maina Osiemo's experience, skills, or background."
-        ),
-        "usedContext": False,
-        "sources": [],
-    }
-
-
-def test_answer_public_question_remembers_user_name_from_history(monkeypatch) -> None:
-    monkeypatch.setattr(
-        chat_service,
-        "get_candidate_context",
-        lambda _: type(
-            "Candidate",
-            (),
-            {
-                "candidate_profile_id": "candidate-1",
-                "full_name": "Maina Osiemo",
-                "persona": "Professional",
-                "public_profile_id": "twin_123",
-            },
-        )(),
-    )
-
-    result = chat_service.answer_public_question(
-        "twin_123",
-        "Do you remember my name?",
-        history=[
-            PublicChatMessage(role="user", content="Hello, I am Alber."),
-            PublicChatMessage(role="assistant", content="Nice to meet you."),
-        ],
-    )
-
-    assert result == {
-        "answer": "Yes. You told me your name is Alber. I'm representing Maina Osiemo in this chat.",
-        "usedContext": False,
-        "sources": [],
-    }
-
-
-def test_answer_public_question_passes_history_to_general_chat(monkeypatch) -> None:
+def test_answer_public_question_uses_one_agent_for_greetings(monkeypatch) -> None:
     candidate = type(
         "Candidate",
         (),
@@ -113,8 +46,15 @@ def test_answer_public_question_passes_history_to_general_chat(monkeypatch) -> N
     monkeypatch.setattr(chat_service, "get_candidate_context", lambda _: candidate)
     monkeypatch.setattr(
         chat_service,
-        "_invoke_chat",
-        lambda messages: (captured.setdefault("messages", messages) and "Hello there", None),
+        "get_current_chunks",
+        lambda _: [],
+    )
+    monkeypatch.setattr(
+        chat_service,
+        "_answer_with_rag_agent",
+        lambda candidate, message, history, chunks: captured.update(
+            {"message": message, "history": history, "chunks": chunks}
+        ) or ("Hello there", None),
     )
 
     result = chat_service.answer_public_question(
@@ -124,10 +64,8 @@ def test_answer_public_question_passes_history_to_general_chat(monkeypatch) -> N
     )
 
     assert result["usedContext"] is False
-    messages = captured["messages"]
-    assert isinstance(messages, list)
-    assert messages[1] == {"role": "user", "content": "I am Alber."}
-    assert messages[2] == {"role": "user", "content": "Hello"}
+    assert captured["message"] == "Hello"
+    assert captured["chunks"] == []
 
 
 def test_answer_with_rag_agent_passes_string_system_prompt(monkeypatch) -> None:
@@ -216,7 +154,7 @@ def test_answer_with_rag_agent_passes_history_messages(monkeypatch) -> None:
     }
 
 
-def test_answer_public_question_with_usage_returns_usage_for_general_chat(monkeypatch) -> None:
+def test_answer_public_question_with_usage_returns_usage_from_one_agent(monkeypatch) -> None:
     candidate = type(
         "Candidate",
         (),
@@ -229,10 +167,11 @@ def test_answer_public_question_with_usage_returns_usage_for_general_chat(monkey
     )()
 
     monkeypatch.setattr(chat_service, "get_candidate_context", lambda _: candidate)
+    monkeypatch.setattr(chat_service, "get_current_chunks", lambda _: [])
     monkeypatch.setattr(
         chat_service,
-        "_invoke_chat",
-        lambda messages: ("Hello there", chat_service.ChatUsage(total_tokens=42)),
+        "_answer_with_rag_agent",
+        lambda *args: ("Hello there", chat_service.ChatUsage(total_tokens=42)),
     )
 
     result, usage = chat_service.answer_public_question_with_usage("twin_123", "Hello")
