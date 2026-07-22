@@ -9,7 +9,7 @@ Chat Me AI turns a candidate’s CV into a shareable, conversational professiona
 - [How it is built](#how-it-is-built)
 - [MCP and skills](#mcp-and-skills)
 - [Project structure](#project-structure)
-- [Local development](#local-development)
+- [Setup](#setup)
 - [Verification](#verification)
 - [Privacy and safety](#privacy-and-safety)
 - [Project documentation](#project-documentation)
@@ -78,25 +78,52 @@ Important locations are documented in [`docs/project_stucture.md`](docs/project_
 - `storage/` — local development assets
 - `infra/` — deployment and infrastructure configuration
 
-## Local development
+## Setup
 
-### Backend
+### Prerequisites
+
+- Python 3.12 or newer
+- [`uv`](https://docs.astral.sh/uv/) for backend dependencies
+- Node.js and npm for the frontend
+- PostgreSQL with pgvector, or a configured Supabase/Aiven PostgreSQL database
+- An OpenRouter-compatible API key for chat and embeddings
+
+### Backend setup
 
 ```bash
 cd backend
 uv sync
-uv run uvicorn app.main:app --reload
+cp .env.example .env
 ```
 
-### Frontend
+Edit `backend/.env` with the database, model provider, storage, authentication, and optional Paystack settings required for your environment. For local file storage, use `STORAGE_TYPE=local` and set `LOCAL_STORAGE_DIR`. For Supabase, provide `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_KEY`, and `SUPABASE_BUCKET`.
+
+Start the API:
+
+```bash
+uv run uvicorn app.main:app --reload --port 8000
+```
+
+### Frontend setup
 
 ```bash
 cd frontend
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Configure environment variables using the examples in `backend/.env.example` and `frontend/.env.example`. Never commit `.env` files, credentials, API keys, or uploaded personal data.
+The frontend runs at `http://localhost:3000`. By default, server-side requests use `API_BASE_URL=http://localhost:8000`; set `NEXT_PUBLIC_API_BASE_URL` only when the browser must call the backend directly.
+
+For a production-style frontend build:
+
+```bash
+cd frontend
+npm run build
+npm run start
+```
+
+Never commit `.env` files, credentials, API keys, or uploaded personal data.
 
 ## Verification
 
