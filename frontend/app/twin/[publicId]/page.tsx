@@ -117,7 +117,7 @@ export default async function TwinPage({ params }: TwinPageProps) {
     <main className="min-h-screen bg-[#050505] text-white">
       <header className="border-b border-white/12 bg-black">
         <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-          <a href="#" className="shrink-0 text-lg font-semibold text-white sm:text-2xl">
+          <a href="#" className="shrink-0 text-base font-semibold text-white sm:text-2xl">
             Chat Me AI
           </a>
 
@@ -125,9 +125,14 @@ export default async function TwinPage({ params }: TwinPageProps) {
             {publicContact ? (
               <a
                 href="#contact"
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full border border-white/18 px-3 text-sm font-semibold text-white/82 transition hover:bg-white/10 hover:text-white sm:px-4"
+                aria-label="Contact"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center px-0 text-sm font-semibold text-white/82 transition hover:text-white sm:h-auto sm:min-h-10 sm:w-auto sm:min-w-0 sm:rounded-full sm:border sm:border-white/18 sm:px-4 sm:hover:bg-white/10"
               >
-                Contact
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 sm:hidden">
+                  <rect x="3.5" y="5.5" width="17" height="13" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="m4.5 7 7.5 6 7.5-6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                </svg>
+                <span className="hidden sm:inline">Contact</span>
               </a>
             ) : null}
             <div className="ml-3 flex min-w-0 items-center justify-end gap-1 sm:ml-8 sm:gap-2">
@@ -147,7 +152,7 @@ export default async function TwinPage({ params }: TwinPageProps) {
             </div>
             <a
               href="#chat"
-              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-semibold text-black transition hover:bg-white/88 sm:min-h-11 sm:px-5"
+              className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full bg-white px-3 text-xs font-semibold text-black transition hover:bg-white/88 sm:min-h-11 sm:px-5 sm:text-sm"
             >
               Chat Now
             </a>
