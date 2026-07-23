@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 
@@ -56,6 +56,8 @@ type DashboardSubscriptionRow = {
   freePublicChatsLimit: number;
   accessStartsAt: string | null;
   accessExpiresAt: string | null;
+  manualAccessGrantedByEmail: string | null;
+  manualAccessGrantedAt: string | null;
   updatedAt: string | null;
 };
 
@@ -68,6 +70,14 @@ type DashboardPayload = {
 
 type PageMode = "loading" | "admin";
 type DashboardSection = "overview" | "users" | "usage" | "subscriptions";
+type ManualAccessDuration = "2_days" | "1_week" | "1_month" | "custom";
+
+const manualAccessOptions: Array<{ value: ManualAccessDuration; label: string }> = [
+  { value: "2_days", label: "2 days" },
+  { value: "1_week", label: "1 week" },
+  { value: "1_month", label: "1 month" },
+  { value: "custom", label: "Custom date" },
+];
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
@@ -108,11 +118,23 @@ function AdminDashboard({
   data,
   activeSection,
   onSectionChange,
+  onManualAccessGrant,
 }: {
   data: DashboardPayload;
   activeSection: DashboardSection;
   onSectionChange: (section: DashboardSection) => void;
+  onManualAccessGrant: (input: {
+    userId: string;
+    duration: ManualAccessDuration;
+    customExpiresAt?: string;
+  }) => Promise<void>;
 }) {
+  const [grantDurations, setGrantDurations] = useState<Record<string, ManualAccessDuration>>({});
+  const [customDates, setCustomDates] = useState<Record<string, string>>({});
+  const [grantingUserId, setGrantingUserId] = useState<string | null>(null);
+  const [grantMessage, setGrantMessage] = useState<string | null>(null);
+  const [expandedGrantDetails, setExpandedGrantDetails] = useState<Record<string, boolean>>({});
+
   const navigationItems: Array<{
     id: DashboardSection;
     label: string;
@@ -123,6 +145,34 @@ function AdminDashboard({
     { id: "usage", label: "Usage", description: "Requests and tokens" },
     { id: "subscriptions", label: "Subscriptions", description: "Plans and end dates" },
   ];
+
+  async function handleGrant(row: DashboardSubscriptionRow) {
+    const duration = grantDurations[row.userId] ?? "2_days";
+    const customDate = customDates[row.userId];
+
+    if (duration === "custom" && !customDate) {
+      setGrantMessage("Choose a custom end date before granting access.");
+      return;
+    }
+
+    setGrantingUserId(row.userId);
+    setGrantMessage(null);
+
+    try {
+      await onManualAccessGrant({
+        userId: row.userId,
+        duration,
+        customExpiresAt: duration === "custom" ? new Date(customDate).toISOString() : undefined,
+      });
+      setGrantMessage(`Manual access updated for ${row.email}.`);
+    } catch (grantError) {
+      setGrantMessage(
+        grantError instanceof Error ? grantError.message : "Unable to grant manual access.",
+      );
+    } finally {
+      setGrantingUserId(null);
+    }
+  }
 
   return (
     <section className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
@@ -350,57 +400,145 @@ function AdminDashboard({
               </p>
             </div>
 
-            <div className="mt-5 overflow-x-auto">
-              <table className="min-w-full text-left text-sm text-white/78">
-                <thead className="text-xs uppercase tracking-[0.2em] text-white/42">
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-xs text-white/78">
+                <thead className="text-[0.65rem] uppercase tracking-[0.16em] text-white/42">
                   <tr>
-                    <th className="px-3 py-3">User</th>
-                    <th className="px-3 py-3">Twin</th>
-                    <th className="px-3 py-3">Status</th>
-                    <th className="px-3 py-3">Plan</th>
-                    <th className="px-3 py-3">Free usage</th>
-                    <th className="px-3 py-3">Start date</th>
-                    <th className="px-3 py-3">End date</th>
+                    <th className="px-2 py-2">User</th>
+                    <th className="px-2 py-2">Twin</th>
+                    <th className="px-2 py-2">Status</th>
+                    <th className="px-2 py-2">Plan</th>
+                    <th className="px-2 py-2">Manual access</th>
+                    <th className="px-2 py-2">Free usage</th>
+                    <th className="px-2 py-2">Start date</th>
+                    <th className="px-2 py-2">End date</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {grantMessage ? (
+                    <tr>
+                      <td colSpan={8} className="px-2 py-2">
+                        <div className="rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-xs text-white/72">
+                          {grantMessage}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
                   {data.subscriptions.map((row) => (
                     <tr
                       key={`${row.userId}-${row.publicProfileId ?? "no-profile"}`}
                       className="border-t border-white/8 align-top"
                     >
-                      <td className="px-3 py-4">
+                      <td className="px-2 py-2">
                         <div className="font-medium text-white">{row.email}</div>
-                        <div className="mt-1 font-mono text-xs text-white/50">{row.userId}</div>
+                        <div className="mt-0.5 max-w-32 truncate font-mono text-[0.65rem] text-white/50">
+                          {row.userId}
+                        </div>
                       </td>
-                      <td className="px-3 py-4">
+                      <td className="px-2 py-2">
                         {row.publicTwinUrl ? (
-                          <div className="space-y-2">
-                            <div className="font-medium text-white">{row.publicProfileId}</div>
+                          <div>
+                            <div className="max-w-32 truncate font-medium text-white">
+                              {row.publicProfileId}
+                            </div>
                             <a
                               href={row.publicTwinUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-sky-200 underline decoration-white/20 underline-offset-4"
+                              className="mt-0.5 inline-block text-[0.65rem] text-sky-200 underline decoration-white/20 underline-offset-4"
                             >
-                              Open public twin
+                              Open
                             </a>
                           </div>
                         ) : (
                           <span className="text-white/42">No twin yet</span>
                         )}
                       </td>
-                      <td className="px-3 py-4">
-                        <span className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white">
+                      <td className="px-2 py-2">
+                        <span className="rounded-full border border-white/10 bg-white/8 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-white">
                           {formatStatusLabel(row.status)}
                         </span>
                       </td>
-                      <td className="px-3 py-4">{row.planLabel}</td>
-                      <td className="px-3 py-4">
+                      <td className="px-2 py-2">{row.planLabel}</td>
+                      <td className="min-w-[220px] px-2 py-2">
+                        {row.manualAccessGrantedByEmail ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedGrantDetails((current) => ({
+                                ...current,
+                                [row.userId]: !current[row.userId],
+                              }))
+                            }
+                            className="mb-1.5 rounded-lg border border-cyan-200/20 bg-cyan-200/10 px-2 py-1 text-left text-[0.65rem] text-cyan-50 transition hover:border-cyan-200/35 hover:bg-cyan-200/14"
+                            title={`Granted by ${row.manualAccessGrantedByEmail}${
+                              row.manualAccessGrantedAt
+                                ? ` on ${formatDate(row.manualAccessGrantedAt)}`
+                                : ""
+                            }`}
+                          >
+                            <span className="font-semibold">Manual grant</span>
+                            {expandedGrantDetails[row.userId] ? (
+                              <span className="mt-0.5 block text-cyan-50/68">
+                                Granted by {row.manualAccessGrantedByEmail}
+                                {row.manualAccessGrantedAt ? (
+                                  <span className="block">
+                                    {formatDate(row.manualAccessGrantedAt)}
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : null}
+                          </button>
+                        ) : (
+                          <div className="mb-1.5 text-[0.65rem] text-white/42">No manual grant</div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <select
+                            value={grantDurations[row.userId] ?? "2_days"}
+                            onChange={(event) =>
+                              setGrantDurations((current) => ({
+                                ...current,
+                                [row.userId]: event.target.value as ManualAccessDuration,
+                              }))
+                            }
+                            disabled={!row.publicProfileId || grantingUserId === row.userId}
+                            className="h-8 rounded-lg border border-white/12 bg-slate-950/60 px-2 text-xs text-white outline-none transition focus:border-cyan-200/50 disabled:opacity-50"
+                          >
+                            {manualAccessOptions.map((option) => (
+                              <option key={option.value} value={option.value} className="bg-slate-950">
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          {(grantDurations[row.userId] ?? "2_days") === "custom" ? (
+                            <input
+                              type="datetime-local"
+                              value={customDates[row.userId] ?? ""}
+                              onChange={(event) =>
+                                setCustomDates((current) => ({
+                                  ...current,
+                                  [row.userId]: event.target.value,
+                                }))
+                              }
+                              disabled={!row.publicProfileId || grantingUserId === row.userId}
+                              className="h-8 rounded-lg border border-white/12 bg-slate-950/60 px-2 text-xs text-white outline-none transition focus:border-cyan-200/50 disabled:opacity-50"
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => void handleGrant(row)}
+                            disabled={!row.publicProfileId || grantingUserId === row.userId}
+                            className="h-8 rounded-lg border border-cyan-200/30 bg-cyan-200/14 px-2.5 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-200/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {grantingUserId === row.userId ? "Granting..." : "Grant"}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2">
                         {formatNumber(row.freePublicChatsUsed)} / {formatNumber(row.freePublicChatsLimit)}
                       </td>
-                      <td className="px-3 py-4">{formatDate(row.accessStartsAt)}</td>
-                      <td className="px-3 py-4">{formatDate(row.accessExpiresAt)}</td>
+                      <td className="px-2 py-2">{formatDate(row.accessStartsAt)}</td>
+                      <td className="px-2 py-2">{formatDate(row.accessExpiresAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -421,36 +559,38 @@ export default function DashboardPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activeSection, setActiveSection] = useState<DashboardSection>("overview");
 
+  const loadDashboard = useCallback(async () => {
+    const adminResponse = await apiFetch("/api/v1/admin/dashboard", {
+      cache: "no-store",
+    });
+
+    if (adminResponse.status === 401) {
+      router.replace("/login");
+      return;
+    }
+
+    if (adminResponse.ok) {
+      const payload = (await adminResponse.json()) as DashboardPayload;
+      setAdminData(payload);
+      setMode("admin");
+      setError(null);
+      return;
+    }
+
+    if (adminResponse.status !== 403) {
+      const payload = (await adminResponse.json()) as { detail?: string };
+      throw new Error(payload.detail ?? "Unable to load the dashboard.");
+    }
+
+    router.replace("/upload");
+  }, [router]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadPage() {
       try {
-        const adminResponse = await apiFetch("/api/v1/admin/dashboard", {
-          cache: "no-store",
-        });
-
-        if (adminResponse.status === 401) {
-          router.replace("/login");
-          return;
-        }
-
-        if (adminResponse.ok) {
-          const payload = (await adminResponse.json()) as DashboardPayload;
-          if (!cancelled) {
-            setAdminData(payload);
-            setMode("admin");
-          }
-          return;
-        }
-
-        if (adminResponse.status !== 403) {
-          const payload = (await adminResponse.json()) as { detail?: string };
-          throw new Error(payload.detail ?? "Unable to load the dashboard.");
-        }
-
-        router.replace("/upload");
-        return;
+        await loadDashboard();
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Unable to load the dashboard.");
@@ -464,7 +604,26 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [loadDashboard]);
+
+  async function handleManualAccessGrant(input: {
+    userId: string;
+    duration: ManualAccessDuration;
+    customExpiresAt?: string;
+  }) {
+    const response = await apiFetch("/api/v1/admin/access-grants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+      throw new Error(payload?.detail ?? "Unable to grant manual access.");
+    }
+
+    await loadDashboard();
+  }
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -530,6 +689,7 @@ export default function DashboardPage() {
             data={adminData}
             activeSection={activeSection}
             onSectionChange={setActiveSection}
+            onManualAccessGrant={handleManualAccessGrant}
           />
         ) : null}
       </div>

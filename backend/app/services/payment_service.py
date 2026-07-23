@@ -38,9 +38,17 @@ create table if not exists billing_access (
   paystack_subscription_code varchar(120),
   paystack_email_token varchar(255),
   last_payment_reference varchar(255),
+  manual_access_granted_by_email varchar(320),
+  manual_access_granted_at timestamptz,
   created_at timestamptz not null,
   updated_at timestamptz not null
 );
+
+alter table billing_access
+  add column if not exists manual_access_granted_by_email varchar(320);
+
+alter table billing_access
+  add column if not exists manual_access_granted_at timestamptz;
 
 create unique index if not exists billing_access_owner_user_id_unique
   on billing_access (owner_user_id);
@@ -476,6 +484,8 @@ def _update_billing_access(
                 paystack_subscription_code = %s,
                 paystack_email_token = %s,
                 last_payment_reference = %s,
+                manual_access_granted_by_email = null,
+                manual_access_granted_at = null,
                 updated_at = %s
             where id = %s
             returning *
