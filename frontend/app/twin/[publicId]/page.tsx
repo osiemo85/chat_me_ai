@@ -109,6 +109,7 @@ export default async function TwinPage({ params }: TwinPageProps) {
     profile.githubUrl ? { href: profile.githubUrl, label: "GitHub" } : null,
     profile.otherUrl ? { href: profile.otherUrl, label: "Other Link" } : null,
   ].filter(Boolean) as Array<{ href: string; label: string }>;
+  const navbarSocialLinks = socialLinks.filter((item) => item.label !== "Other Link");
   const publicContact =
     profile.contactEmail || profile.contactPhone
       ? { email: profile.contactEmail, phone: profile.contactPhone }
@@ -136,7 +137,7 @@ export default async function TwinPage({ params }: TwinPageProps) {
               </a>
             ) : null}
             <div className="ml-3 flex min-w-0 items-center justify-end gap-1 sm:ml-8 sm:gap-2">
-              {socialLinks.map((item) => (
+              {navbarSocialLinks.map((item) => (
                 <a
                   key={item.label}
                   href={item.href}
