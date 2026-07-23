@@ -41,5 +41,6 @@ class EditableProfileResponse(BaseModel):
     otherUrl: str | None = None
     persona: str
     publicProfileId: str
+    publicLink: str | None = None
     cvFileName: str | None = None
     passportFileName: str | None = None

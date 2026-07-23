@@ -57,6 +57,27 @@ const testimonials = [
     role: "Backend Developer",
     impact: "Better-informed follow-up conversations",
   },
+  {
+    quote:
+      "My twin helped me secure a remote job because the hiring team could explore my experience before our first call. They were impressed by how modern and easy it was to share my CV.",
+    name: "Kevin M.",
+    role: "Remote Product Specialist",
+    impact: "Helped secure a remote role",
+  },
+  {
+    quote:
+      "As an HR manager, I appreciated being able to share one link with candidates and quickly understand their background. The conversational CV made screening more engaging and efficient.",
+    name: "Angela W.",
+    role: "HR Manager",
+    impact: "More engaging candidate screening",
+  },
+  {
+    quote:
+      "The twin gave my personal brand a fresh, modern edge. As a digital marketer, I loved sharing a CV that felt interactive instead of sending another static document.",
+    name: "Lydia K.",
+    role: "Digital Marketer",
+    impact: "A more memorable personal brand",
+  },
 ];
 
 function TestimonialAvatar({
@@ -173,6 +194,8 @@ function HomeContent() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasExistingTwin, setHasExistingTwin] = useState(false);
+  const [publicTwinLink, setPublicTwinLink] = useState<string | null>(null);
+  const [isTwinLinkCopied, setIsTwinLinkCopied] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const accessMessage = searchParams.get("message");
@@ -233,10 +256,19 @@ function HomeContent() {
           return;
         }
 
-        setHasExistingTwin(response.ok);
+        if (!response.ok) {
+          setHasExistingTwin(false);
+          setPublicTwinLink(null);
+          return;
+        }
+
+        const payload = (await response.json()) as { publicLink?: string | null };
+        setHasExistingTwin(true);
+        setPublicTwinLink(payload.publicLink ?? null);
       } catch {
         if (!cancelled) {
           setHasExistingTwin(false);
+          setPublicTwinLink(null);
         }
       }
     }
@@ -251,7 +283,7 @@ function HomeContent() {
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setActiveTestimonial((current) => (current + 1) % testimonials.length);
-    }, 20000);
+    }, 15000);
 
     return () => window.clearInterval(intervalId);
   }, []);
@@ -265,10 +297,21 @@ function HomeContent() {
       });
       setIsAuthenticated(false);
       setHasExistingTwin(false);
+      setPublicTwinLink(null);
+      setIsTwinLinkCopied(false);
       router.refresh();
     } finally {
       setIsLoggingOut(false);
     }
+  }
+
+  async function handleCopyTwinLink() {
+    if (!publicTwinLink) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(publicTwinLink);
+    setIsTwinLinkCopied(true);
   }
 
   const primaryHref = isAuthenticated ? "/upload" : "/register";
@@ -321,6 +364,31 @@ function HomeContent() {
             />
           </div>
         </header>
+
+        {isAuthenticated && publicTwinLink ? (
+          <section className="mt-4 rounded-[1.5rem] border border-cyan-300/20 bg-cyan-300/8 px-4 py-4 sm:px-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100/75">
+                  Your public twin link
+                </p>
+                <a
+                  href={publicTwinLink}
+                  className="mt-1 block truncate text-sm font-semibold text-white underline decoration-white/25 underline-offset-4"
+                >
+                  {publicTwinLink}
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCopyTwinLink()}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-50"
+              >
+                {isTwinLinkCopied ? "Copied" : "Copy link"}
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="public-twin-hero relative mt-5 overflow-hidden rounded-[2rem] border border-white/10 px-5 py-6 sm:px-7 sm:py-8 lg:px-8 lg:py-9">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(255,255,255,0.08),transparent_24%),radial-gradient(circle_at_88%_86%,rgba(140,244,255,0.12),transparent_24%)]" />

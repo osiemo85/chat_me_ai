@@ -881,6 +881,11 @@ def get_editable_profile_for_user(
         "otherUrl": row["other_url"],
         "persona": row["persona"],
         "publicProfileId": row["public_profile_id"],
+        "publicLink": frontend_public_link(
+            first_name=row["first_name"],
+            second_name=row["second_name"],
+            public_profile_id=row["public_profile_id"],
+        ),
         "cvFileName": row["cv_file_name"],
         "passportFileName": row["passport_file_name"],
     }
@@ -910,6 +915,11 @@ def get_current_editable_profile_for_user(*, user_id: str) -> dict[str, object] 
         "otherUrl": row["other_url"],
         "persona": row["persona"],
         "publicProfileId": row["public_profile_id"],
+        "publicLink": frontend_public_link(
+            first_name=row["first_name"],
+            second_name=row["second_name"],
+            public_profile_id=row["public_profile_id"],
+        ),
         "cvFileName": row["cv_file_name"],
         "passportFileName": row["passport_file_name"],
     }
