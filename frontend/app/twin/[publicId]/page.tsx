@@ -110,7 +110,7 @@ export default async function TwinPage({ params }: TwinPageProps) {
     profile.otherUrl ? { href: profile.otherUrl, label: "Other Link" } : null,
   ].filter(Boolean) as Array<{ href: string; label: string }>;
   const publicContact =
-    profile.contactEmail && profile.contactPhone
+    profile.contactEmail || profile.contactPhone
       ? { email: profile.contactEmail, phone: profile.contactPhone }
       : null;
   return (
@@ -215,18 +215,22 @@ export default async function TwinPage({ params }: TwinPageProps) {
                   Get in touch
                 </p>
                 <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
-                  <a
-                    href={`mailto:${publicContact.email}`}
-                    className="text-white/78 underline decoration-white/25 underline-offset-4 transition hover:text-white"
-                  >
-                    {publicContact.email}
-                  </a>
-                  <a
-                    href={`tel:${publicContact.phone.replace(/\s+/g, "")}`}
-                    className="text-white/78 underline decoration-white/25 underline-offset-4 transition hover:text-white"
-                  >
-                    {publicContact.phone}
-                  </a>
+                  {publicContact.email ? (
+                    <a
+                      href={`mailto:${publicContact.email}`}
+                      className="text-white/78 underline decoration-white/25 underline-offset-4 transition hover:text-white"
+                    >
+                      {publicContact.email}
+                    </a>
+                  ) : null}
+                  {publicContact.phone ? (
+                    <a
+                      href={`tel:${publicContact.phone.replace(/\s+/g, "")}`}
+                      className="text-white/78 underline decoration-white/25 underline-offset-4 transition hover:text-white"
+                    >
+                      {publicContact.phone}
+                    </a>
+                  ) : null}
                 </div>
               </section>
             ) : null}

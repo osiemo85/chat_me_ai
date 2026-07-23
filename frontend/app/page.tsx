@@ -283,7 +283,7 @@ function HomeContent() {
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setActiveTestimonial((current) => (current + 1) % testimonials.length);
-    }, 15000);
+    }, 10000);
 
     return () => window.clearInterval(intervalId);
   }, []);
