@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getApiBaseUrl } from "@/lib/api";
@@ -251,6 +252,15 @@ export default async function TwinPage({ params }: TwinPageProps) {
           candidateImageUrl={profile.passportUrl}
         />
       </div>
+
+      <footer className="border-t border-white/10 px-4 py-8 text-center text-sm text-white/58 sm:px-6">
+        <Link
+          href="/"
+          className="font-semibold text-cyan-100 underline decoration-white/20 underline-offset-4 transition hover:text-white"
+        >
+          Create your own twin
+        </Link>
+      </footer>
     </main>
   );
 }
