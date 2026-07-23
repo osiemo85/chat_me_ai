@@ -36,6 +36,8 @@ create table if not exists candidate_profiles (
   first_name varchar(100) not null,
   second_name varchar(100) not null,
   email varchar(255) not null unique,
+  contact_email varchar(255),
+  contact_phone varchar(40),
   linkedin_url text,
   github_url text,
   other_url text,
@@ -110,6 +112,12 @@ create index if not exists chat_usage_events_owner_lookup_idx
 alter table candidate_profiles
   add column if not exists user_id uuid references auth_users(id) on delete cascade;
 
+alter table candidate_profiles
+  add column if not exists contact_email varchar(255);
+
+alter table candidate_profiles
+  add column if not exists contact_phone varchar(40);
+
 create unique index if not exists candidate_profiles_user_id_unique
   on candidate_profiles (user_id)
   where user_id is not null;
@@ -122,6 +130,8 @@ class UploadedPayload:
     first_name: str
     second_name: str
     email: str
+    contact_email: str | None
+    contact_phone: str | None
     linkedin_url: str | None
     github_url: str | None
     other_url: str | None
@@ -236,6 +246,8 @@ def _get_or_create_candidate(
                 "user_id = %s",
                 "first_name = %s",
                 "second_name = %s",
+                "contact_email = %s",
+                "contact_phone = %s",
                 "linkedin_url = %s",
                 "github_url = %s",
                 "other_url = %s",
@@ -245,6 +257,8 @@ def _get_or_create_candidate(
                 payload.user_id,
                 payload.first_name,
                 payload.second_name,
+                payload.contact_email,
+                payload.contact_phone,
                 payload.linkedin_url,
                 payload.github_url,
                 payload.other_url,
@@ -279,6 +293,8 @@ def _get_or_create_candidate(
               first_name,
               second_name,
               email,
+              contact_email,
+              contact_phone,
               linkedin_url,
               github_url,
               other_url,
@@ -297,6 +313,8 @@ def _get_or_create_candidate(
                 payload.first_name,
                 payload.second_name,
                 payload.email,
+                payload.contact_email,
+                payload.contact_phone,
                 payload.linkedin_url,
                 payload.github_url,
                 payload.other_url,
@@ -752,6 +770,8 @@ def _editable_profile_query(where_clause: str) -> str:
           cp.first_name,
           cp.second_name,
           cp.email,
+          cp.contact_email,
+          cp.contact_phone,
           cp.github_url,
           cp.linkedin_url,
           cp.other_url,
@@ -785,6 +805,8 @@ def get_public_profile(public_profile_id: str) -> dict[str, object] | None:
                 select
                   cp.first_name,
                   cp.second_name,
+                  cp.contact_email,
+                  cp.contact_phone,
                   cp.github_url,
                   cp.linkedin_url,
                   cp.other_url,
@@ -815,6 +837,8 @@ def get_public_profile(public_profile_id: str) -> dict[str, object] | None:
     return {
         "firstName": row["first_name"],
         "secondName": row["second_name"],
+        "contactEmail": row["contact_email"],
+        "contactPhone": row["contact_phone"],
         "githubUrl": row["github_url"],
         "linkedinUrl": row["linkedin_url"],
         "otherUrl": row["other_url"],
@@ -850,11 +874,18 @@ def get_editable_profile_for_user(
         "firstName": row["first_name"],
         "secondName": row["second_name"],
         "email": row["email"],
+        "contactEmail": row["contact_email"],
+        "contactPhone": row["contact_phone"],
         "githubUrl": row["github_url"],
         "linkedinUrl": row["linkedin_url"],
         "otherUrl": row["other_url"],
         "persona": row["persona"],
         "publicProfileId": row["public_profile_id"],
+        "publicLink": frontend_public_link(
+            first_name=row["first_name"],
+            second_name=row["second_name"],
+            public_profile_id=row["public_profile_id"],
+        ),
         "cvFileName": row["cv_file_name"],
         "passportFileName": row["passport_file_name"],
     }
@@ -877,11 +908,18 @@ def get_current_editable_profile_for_user(*, user_id: str) -> dict[str, object] 
         "firstName": row["first_name"],
         "secondName": row["second_name"],
         "email": row["email"],
+        "contactEmail": row["contact_email"],
+        "contactPhone": row["contact_phone"],
         "githubUrl": row["github_url"],
         "linkedinUrl": row["linkedin_url"],
         "otherUrl": row["other_url"],
         "persona": row["persona"],
         "publicProfileId": row["public_profile_id"],
+        "publicLink": frontend_public_link(
+            first_name=row["first_name"],
+            second_name=row["second_name"],
+            public_profile_id=row["public_profile_id"],
+        ),
         "cvFileName": row["cv_file_name"],
         "passportFileName": row["passport_file_name"],
     }
@@ -907,6 +945,8 @@ def validate_upload_payload(
     cv_content_type: str | None,
     cv_filename: str | None,
     email: str,
+    contact_email: str | None,
+    contact_phone: str | None,
     first_name: str,
     github_url: str | None,
     linkedin_url: str | None,
@@ -928,6 +968,11 @@ def validate_upload_payload(
     if not persona.strip():
         raise ValueError("Persona is required.")
 
+    normalized_contact_email = _normalize_optional(contact_email)
+    normalized_contact_phone = _normalize_optional(contact_phone)
+    if normalized_contact_email and "@" not in normalized_contact_email:
+        raise ValueError("Public contact email must be a valid email address.")
+
     if cv_bytes:
         if cv_content_type != "application/pdf":
             raise ValueError("CV must be a PDF file.")
@@ -946,6 +991,8 @@ def validate_upload_payload(
         first_name=first_name.strip(),
         second_name=second_name.strip(),
         email=user.email,
+        contact_email=normalized_contact_email,
+        contact_phone=normalized_contact_phone,
         linkedin_url=_normalize_optional(linkedin_url),
         github_url=_normalize_optional(github_url),
         other_url=_normalize_optional(other_url),

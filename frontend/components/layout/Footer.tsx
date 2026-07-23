@@ -40,7 +40,7 @@ export function Footer() {
 
           <div>
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--accent)]">
-              Contact
+              Contact for Support
             </p>
             <div className="mt-3 flex flex-col gap-2 text-sm">
               <p>

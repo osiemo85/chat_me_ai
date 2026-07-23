@@ -16,6 +16,8 @@ class PublicProfileResponse(BaseModel):
 
     firstName: str
     secondName: str
+    contactEmail: str | None = None
+    contactPhone: str | None = None
     githubUrl: str | None = None
     linkedinUrl: str | None = None
     otherUrl: str | None = None
@@ -32,10 +34,13 @@ class EditableProfileResponse(BaseModel):
     firstName: str
     secondName: str
     email: str
+    contactEmail: str | None = None
+    contactPhone: str | None = None
     githubUrl: str | None = None
     linkedinUrl: str | None = None
     otherUrl: str | None = None
     persona: str
     publicProfileId: str
+    publicLink: str | None = None
     cvFileName: str | None = None
     passportFileName: str | None = None
