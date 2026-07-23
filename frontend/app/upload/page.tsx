@@ -26,6 +26,8 @@ type FormState = {
   firstName: string;
   secondName: string;
   email: string;
+  contactEmail: string;
+  contactPhone: string;
   linkedinUrl: string;
   githubUrl: string;
   otherUrl: string;
@@ -43,6 +45,8 @@ type SubmissionResult = {
 type PublicProfile = {
   firstName: string;
   secondName: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
   otherUrl: string | null;
@@ -57,6 +61,8 @@ type EditableProfile = {
   firstName: string;
   secondName: string;
   email: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
   otherUrl: string | null;
@@ -96,6 +102,8 @@ const initialState: FormState = {
   firstName: "",
   secondName: "",
   email: "",
+  contactEmail: "",
+  contactPhone: "",
   linkedinUrl: "",
   githubUrl: "",
   otherUrl: "",
@@ -308,6 +316,8 @@ function UploadPageContent() {
           firstName: payload.firstName,
           secondName: payload.secondName,
           email: currentUser?.email ?? payload.email,
+          contactEmail: payload.contactEmail ?? "",
+          contactPhone: payload.contactPhone ?? "",
           linkedinUrl: payload.linkedinUrl ?? "",
           githubUrl: payload.githubUrl ?? "",
           otherUrl: payload.otherUrl ?? "",
@@ -520,6 +530,8 @@ function UploadPageContent() {
       setProfileStatus({
         firstName: form.firstName,
         secondName: form.secondName,
+        contactEmail: form.contactEmail || null,
+        contactPhone: form.contactPhone || null,
         githubUrl: form.githubUrl || null,
         linkedinUrl: form.linkedinUrl || null,
         otherUrl: form.otherUrl || null,
@@ -847,6 +859,37 @@ function UploadPageContent() {
                   />
                 </label>
 
+                <div className="md:col-span-2">
+                  <p className="text-sm font-medium text-white/84">Public contact details</p>
+                  <p className="mt-1 text-xs leading-5 text-white/48">
+                    Optional. These details are visible to anyone who can view your public twin.
+                  </p>
+                </div>
+
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-white/84">Public email</span>
+                  <input
+                    name="contactEmail"
+                    type="email"
+                    value={form.contactEmail}
+                    onChange={(event) => updateField("contactEmail", event.target.value)}
+                    placeholder="hello@example.com"
+                    className="w-full rounded-2xl border border-white/12 bg-black/20 px-4 py-3 text-white outline-none transition placeholder:text-white/32 focus:border-sky-300/60"
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-white/84">Public phone</span>
+                  <input
+                    name="contactPhone"
+                    type="tel"
+                    value={form.contactPhone}
+                    onChange={(event) => updateField("contactPhone", event.target.value)}
+                    placeholder="+254 700 000 000"
+                    className="w-full rounded-2xl border border-white/12 bg-black/20 px-4 py-3 text-white outline-none transition placeholder:text-white/32 focus:border-sky-300/60"
+                  />
+                </label>
+
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-white/84">
                     LinkedIn link
@@ -1044,6 +1087,7 @@ function UploadPageContent() {
                           form.linkedinUrl && "LinkedIn",
                           form.githubUrl && "GitHub",
                           form.otherUrl && "Other",
+                          form.contactEmail && form.contactPhone && "Contact",
                         ]
                           .filter(Boolean)
                           .join(", ") || "No social links added"}

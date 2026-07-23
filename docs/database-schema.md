@@ -10,6 +10,8 @@ The current frontend form captures:
 - `first_name`
 - `second_name`
 - `email`
+- `contact_email` optional and public
+- `contact_phone` optional and public
 - `linkedin_url` optional
 - `github_url` optional
 - `other_url` optional
@@ -30,6 +32,8 @@ file references, metadata, and processing state, not file bytes.
 | `first_name` | `varchar(100)` | yes | Candidate first name |
 | `second_name` | `varchar(100)` | yes | Candidate second name |
 | `email` | `varchar(255)` | yes | Unique candidate email |
+| `contact_email` | `varchar(255)` | no | Optional public contact email |
+| `contact_phone` | `varchar(40)` | no | Optional public contact phone number |
 | `linkedin_url` | `text` | no | Optional LinkedIn profile URL |
 | `github_url` | `text` | no | Optional GitHub profile URL |
 | `other_url` | `text` | no | Optional portfolio or other public URL |
@@ -81,6 +85,8 @@ create table candidate_profiles (
   first_name varchar(100) not null,
   second_name varchar(100) not null,
   email varchar(255) not null unique,
+  contact_email varchar(255),
+  contact_phone varchar(40),
   linkedin_url text,
   github_url text,
   other_url text,

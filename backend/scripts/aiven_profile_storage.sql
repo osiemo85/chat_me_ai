@@ -3,6 +3,8 @@ create table if not exists candidate_profiles (
   first_name varchar(100) not null,
   second_name varchar(100) not null,
   email varchar(255) not null unique,
+  contact_email varchar(255),
+  contact_phone varchar(40),
   linkedin_url text,
   github_url text,
   other_url text,

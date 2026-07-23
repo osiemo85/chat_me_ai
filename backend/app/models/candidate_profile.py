@@ -35,6 +35,8 @@ class CandidateProfileDraft:
     second_name: str
     email: str
     persona: PersonaOption
+    contact_email: str | None = None
+    contact_phone: str | None = None
     linkedin_url: str | None = None
     github_url: str | None = None
     other_url: str | None = None
