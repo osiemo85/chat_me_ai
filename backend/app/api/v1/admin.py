@@ -7,8 +7,13 @@ from ...schemas.admin import (
     AdminDashboardResponse,
     ManualAccessGrantRequest,
     ManualAccessGrantResponse,
+    ManualAccessRevokeResponse,
 )
-from ...services.admin_service import get_admin_dashboard_data, grant_manual_access
+from ...services.admin_service import (
+    get_admin_dashboard_data,
+    grant_manual_access,
+    revoke_manual_access,
+)
 from ...services.auth_service import AuthenticatedUser
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -50,3 +55,22 @@ def create_manual_access_grant(
         ) from exc
 
     return ManualAccessGrantResponse(**result)
+
+
+@router.delete("/access-grants/{user_id}", response_model=ManualAccessRevokeResponse)
+def delete_manual_access_grant(
+    user_id: str,
+    current_user: AuthenticatedUser = Depends(require_admin_user),
+) -> ManualAccessRevokeResponse:
+    """Revoke a user's manual access grant."""
+
+    del current_user
+    try:
+        result = revoke_manual_access(user_id=user_id)
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    return ManualAccessRevokeResponse(**result)

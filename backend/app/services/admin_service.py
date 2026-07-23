@@ -62,6 +62,39 @@ def _resolve_manual_access_expires_at(
     return base + delta
 
 
+def _manual_revoke_state(row: dict[str, object], now: datetime) -> dict[str, object]:
+    """Return entitlement fields after removing a manual grant."""
+
+    previous_status = row.get("manual_access_previous_status")
+    if isinstance(previous_status, str) and previous_status.strip():
+        return {
+            "status": previous_status.strip(),
+            "access_starts_at": row.get("manual_access_previous_starts_at"),
+            "access_expires_at": row.get("manual_access_previous_expires_at"),
+        }
+
+    has_payment_record = any(
+        row.get(field)
+        for field in (
+            "paystack_customer_code",
+            "paystack_subscription_code",
+            "last_payment_reference",
+        )
+    )
+    if has_payment_record:
+        return {
+            "status": "active",
+            "access_starts_at": row.get("access_starts_at"),
+            "access_expires_at": row.get("access_expires_at"),
+        }
+
+    return {
+        "status": "inactive",
+        "access_starts_at": row.get("access_starts_at"),
+        "access_expires_at": now,
+    }
+
+
 def grant_manual_access(
     *,
     user_id: str,
@@ -163,6 +196,18 @@ def grant_manual_access(
                     access_expires_at = %s,
                     manual_access_granted_by_email = %s,
                     manual_access_granted_at = %s,
+                    manual_access_previous_status = case
+                      when manual_access_granted_by_email is null then status
+                      else manual_access_previous_status
+                    end,
+                    manual_access_previous_starts_at = case
+                      when manual_access_granted_by_email is null then access_starts_at
+                      else manual_access_previous_starts_at
+                    end,
+                    manual_access_previous_expires_at = case
+                      when manual_access_granted_by_email is null then access_expires_at
+                      else manual_access_previous_expires_at
+                    end,
                     updated_at = %s
                 where id = %s
                 returning *
@@ -182,6 +227,95 @@ def grant_manual_access(
 
     if updated_row is None:
         raise RuntimeError("Unable to grant manual access.")
+
+    return {
+        "userId": str(candidate["owner_user_id"]),
+        "email": str(candidate["email"]),
+        "publicProfileId": candidate["public_profile_id"],
+        "status": str(updated_row["status"]),
+        "accessStartsAt": updated_row["access_starts_at"],
+        "accessExpiresAt": updated_row["access_expires_at"],
+        "manualAccessGrantedByEmail": updated_row["manual_access_granted_by_email"],
+        "manualAccessGrantedAt": updated_row["manual_access_granted_at"],
+    }
+
+
+def revoke_manual_access(*, user_id: str) -> dict[str, object]:
+    """Remove a manual access grant and restore the prior entitlement state."""
+
+    ensure_schema()
+    ensure_payment_schema()
+    now = datetime.now(UTC)
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                select
+                  au.id as owner_user_id,
+                  au.email,
+                  cp.id as candidate_profile_id,
+                  cp.public_profile_id
+                from auth_users au
+                join candidate_profiles cp
+                  on cp.user_id = au.id
+                where au.id = %s
+                limit 1
+                for update
+                """,
+                (user_id,),
+            )
+            candidate = cursor.fetchone()
+
+            if not candidate:
+                raise LookupError("User profile not found.")
+
+            cursor.execute(
+                """
+                select *
+                from billing_access
+                where owner_user_id = %s
+                  and candidate_profile_id = %s
+                limit 1
+                for update
+                """,
+                (str(candidate["owner_user_id"]), str(candidate["candidate_profile_id"])),
+            )
+            billing_row = cursor.fetchone()
+
+            if not billing_row or not billing_row.get("manual_access_granted_by_email"):
+                raise LookupError("Manual access grant not found.")
+
+            revoke_state = _manual_revoke_state(billing_row, now)
+            cursor.execute(
+                """
+                update billing_access
+                set status = %s,
+                    access_starts_at = %s,
+                    access_expires_at = %s,
+                    manual_access_granted_by_email = null,
+                    manual_access_granted_at = null,
+                    manual_access_previous_status = null,
+                    manual_access_previous_starts_at = null,
+                    manual_access_previous_expires_at = null,
+                    updated_at = %s
+                where id = %s
+                returning *
+                """,
+                (
+                    revoke_state["status"],
+                    revoke_state["access_starts_at"],
+                    revoke_state["access_expires_at"],
+                    now,
+                    billing_row["id"],
+                ),
+            )
+            updated_row = cursor.fetchone()
+
+        connection.commit()
+
+    if updated_row is None:
+        raise RuntimeError("Unable to revoke manual access.")
 
     return {
         "userId": str(candidate["owner_user_id"]),

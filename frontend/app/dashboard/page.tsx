@@ -119,6 +119,7 @@ function AdminDashboard({
   activeSection,
   onSectionChange,
   onManualAccessGrant,
+  onManualAccessRevoke,
 }: {
   data: DashboardPayload;
   activeSection: DashboardSection;
@@ -128,6 +129,7 @@ function AdminDashboard({
     duration: ManualAccessDuration;
     customExpiresAt?: string;
   }) => Promise<void>;
+  onManualAccessRevoke: (userId: string) => Promise<void>;
 }) {
   const [grantDurations, setGrantDurations] = useState<Record<string, ManualAccessDuration>>({});
   const [customDates, setCustomDates] = useState<Record<string, string>>({});
@@ -168,6 +170,26 @@ function AdminDashboard({
     } catch (grantError) {
       setGrantMessage(
         grantError instanceof Error ? grantError.message : "Unable to grant manual access.",
+      );
+    } finally {
+      setGrantingUserId(null);
+    }
+  }
+
+  async function handleRevoke(row: DashboardSubscriptionRow) {
+    setGrantingUserId(row.userId);
+    setGrantMessage(null);
+
+    try {
+      await onManualAccessRevoke(row.userId);
+      setExpandedGrantDetails((current) => ({
+        ...current,
+        [row.userId]: false,
+      }));
+      setGrantMessage(`Manual access revoked for ${row.email}.`);
+    } catch (revokeError) {
+      setGrantMessage(
+        revokeError instanceof Error ? revokeError.message : "Unable to revoke manual access.",
       );
     } finally {
       setGrantingUserId(null);
@@ -493,45 +515,58 @@ function AdminDashboard({
                           <div className="mb-1.5 text-[0.65rem] text-white/42">No manual grant</div>
                         )}
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <select
-                            value={grantDurations[row.userId] ?? "2_days"}
-                            onChange={(event) =>
-                              setGrantDurations((current) => ({
-                                ...current,
-                                [row.userId]: event.target.value as ManualAccessDuration,
-                              }))
-                            }
-                            disabled={!row.publicProfileId || grantingUserId === row.userId}
-                            className="h-8 rounded-lg border border-white/12 bg-slate-950/60 px-2 text-xs text-white outline-none transition focus:border-cyan-200/50 disabled:opacity-50"
-                          >
-                            {manualAccessOptions.map((option) => (
-                              <option key={option.value} value={option.value} className="bg-slate-950">
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                          {(grantDurations[row.userId] ?? "2_days") === "custom" ? (
-                            <input
-                              type="datetime-local"
-                              value={customDates[row.userId] ?? ""}
-                              onChange={(event) =>
-                                setCustomDates((current) => ({
-                                  ...current,
-                                  [row.userId]: event.target.value,
-                                }))
-                              }
+                          {row.manualAccessGrantedByEmail ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleRevoke(row)}
                               disabled={!row.publicProfileId || grantingUserId === row.userId}
-                              className="h-8 rounded-lg border border-white/12 bg-slate-950/60 px-2 text-xs text-white outline-none transition focus:border-cyan-200/50 disabled:opacity-50"
-                            />
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => void handleGrant(row)}
-                            disabled={!row.publicProfileId || grantingUserId === row.userId}
-                            className="h-8 rounded-lg border border-cyan-200/30 bg-cyan-200/14 px-2.5 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-200/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {grantingUserId === row.userId ? "Granting..." : "Grant"}
-                          </button>
+                              className="h-8 rounded-lg border border-rose-200/30 bg-rose-300/12 px-2.5 text-xs font-semibold text-rose-50 transition hover:bg-rose-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {grantingUserId === row.userId ? "Revoking..." : "Revoke"}
+                            </button>
+                          ) : (
+                            <>
+                              <select
+                                value={grantDurations[row.userId] ?? "2_days"}
+                                onChange={(event) =>
+                                  setGrantDurations((current) => ({
+                                    ...current,
+                                    [row.userId]: event.target.value as ManualAccessDuration,
+                                  }))
+                                }
+                                disabled={!row.publicProfileId || grantingUserId === row.userId}
+                                className="h-8 rounded-lg border border-white/12 bg-slate-950/60 px-2 text-xs text-white outline-none transition focus:border-cyan-200/50 disabled:opacity-50"
+                              >
+                                {manualAccessOptions.map((option) => (
+                                  <option key={option.value} value={option.value} className="bg-slate-950">
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {(grantDurations[row.userId] ?? "2_days") === "custom" ? (
+                                <input
+                                  type="datetime-local"
+                                  value={customDates[row.userId] ?? ""}
+                                  onChange={(event) =>
+                                    setCustomDates((current) => ({
+                                      ...current,
+                                      [row.userId]: event.target.value,
+                                    }))
+                                  }
+                                  disabled={!row.publicProfileId || grantingUserId === row.userId}
+                                  className="h-8 rounded-lg border border-white/12 bg-slate-950/60 px-2 text-xs text-white outline-none transition focus:border-cyan-200/50 disabled:opacity-50"
+                                />
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => void handleGrant(row)}
+                                disabled={!row.publicProfileId || grantingUserId === row.userId}
+                                className="h-8 rounded-lg border border-cyan-200/30 bg-cyan-200/14 px-2.5 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-200/20 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {grantingUserId === row.userId ? "Granting..." : "Grant"}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                       <td className="px-2 py-2">
@@ -625,6 +660,19 @@ export default function DashboardPage() {
     await loadDashboard();
   }
 
+  async function handleManualAccessRevoke(userId: string) {
+    const response = await apiFetch(`/api/v1/admin/access-grants/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+      throw new Error(payload?.detail ?? "Unable to revoke manual access.");
+    }
+
+    await loadDashboard();
+  }
+
   async function handleLogout() {
     setIsLoggingOut(true);
 
@@ -690,6 +738,7 @@ export default function DashboardPage() {
             activeSection={activeSection}
             onSectionChange={setActiveSection}
             onManualAccessGrant={handleManualAccessGrant}
+            onManualAccessRevoke={handleManualAccessRevoke}
           />
         ) : null}
       </div>

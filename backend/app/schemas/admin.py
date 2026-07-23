@@ -105,3 +105,16 @@ class ManualAccessGrantResponse(BaseModel):
     accessExpiresAt: datetime
     manualAccessGrantedByEmail: str
     manualAccessGrantedAt: datetime
+
+
+class ManualAccessRevokeResponse(BaseModel):
+    """Manual access revoke result."""
+
+    userId: str
+    email: str
+    publicProfileId: str | None = None
+    status: str
+    accessStartsAt: datetime | None = None
+    accessExpiresAt: datetime | None = None
+    manualAccessGrantedByEmail: str | None = None
+    manualAccessGrantedAt: datetime | None = None
